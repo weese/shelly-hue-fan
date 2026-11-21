@@ -1,0 +1,8 @@
+# Pinned: nightly from 2026-10-19 onward bundles a libc that renamed the
+# ESP-IDF `stat` fields (st_atime -> st_atim, ...), which breaks building `std`
+# for the espidf target. See https://github.com/rust-lang/rust/issues/164555
+# nightly-2026-10-18 is the last good date before that libc bump. Bump this once
+# the fix lands upstream and `std` for riscv32imac-esp-espidf builds on newer nightly.
+[toolchain]
+channel = "nightly-2026-10-18"
+components = ["rust-src"]

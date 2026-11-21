@@ -1,0 +1,29 @@
+[package]
+name = "shelly-hue-fan"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.84"
+description = "Hue-compatible Zigbee fan controller for the Shelly 1PM Gen4 (switch with run-on timer), built on huesmith"
+license = "MIT"
+repository = "https://github.com/weese/shelly-hue-fan"
+
+[dependencies]
+# huesmith turns the ESP32-C6 into a native Philips-Hue-compatible Zigbee light
+# and drives our LightOutput backend. See https://github.com/canack/huesmith
+huesmith    = "0.1"
+esp-idf-sys = "0.37"
+# esp-idf-svc provides the WiFi AP, HTTP server and NVS used by the setup portal
+# (already in the tree via huesmith). Pinned to the version huesmith resolves.
+esp-idf-svc = "0.52"
+log         = "0.4"
+
+[build-dependencies]
+embuild = "0.33"
+
+[profile.release]
+opt-level = "s"
+lto = true
+
+[profile.dev]
+debug = true
+opt-level = "z"

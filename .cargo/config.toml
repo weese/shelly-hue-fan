@@ -1,0 +1,18 @@
+[build]
+target = "riscv32imac-esp-espidf"
+
+[target.riscv32imac-esp-espidf]
+linker = "ldproxy"
+# `--partition-table` is required: unlike `cargo espflash flash`, a bare
+# `espflash`/`cargo run` does not read the partition table from sdkconfig, and
+# without the custom table the Zigbee NVS partitions are missing.
+runner = "espflash flash --monitor --partition-table partitions.csv"
+
+[unstable]
+build-std = ["std", "panic_abort"]
+
+[env]
+MCU                       = "esp32c6"
+ESP_IDF_VERSION           = "v5.2.2"
+ESP_IDF_TOOLS_INSTALL_DIR = "global"
+ESP_IDF_COMPONENT_MANAGER = "y"
