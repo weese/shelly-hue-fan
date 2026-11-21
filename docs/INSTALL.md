@@ -167,7 +167,8 @@ Disconnect the adapter. In a safe test setup, not yet in the wall box:
 3. If the fan runs when Hue says off, the relay polarity is inverted. Set
    *Relay output* to *Inverted* in
    [setup mode](USER_MANUAL.md#changing-settings-setup-mode).
-4. Open setup mode once and confirm your phone can connect.
+4. Open setup mode once and confirm your phone can connect. On the bench,
+   holding the button for 5 seconds is quicker than power cycling.
 
 Then have it installed, and hand the [user manual](USER_MANUAL.md) to whoever
 uses the bathroom.

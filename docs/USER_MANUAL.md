@@ -5,6 +5,7 @@ firmware onto a Shelly, see the [installation guide](INSTALL.md).
 
 - [What it does](#what-it-does)
 - [The status light](#the-status-light)
+- [The button](#the-button)
 - [Changing settings (setup mode)](#changing-settings-setup-mode)
 - [Adding it to a Hue Bridge](#adding-it-to-a-hue-bridge)
 - [Re-adding or moving to another bridge](#re-adding-or-moving-to-another-bridge)
@@ -39,6 +40,8 @@ instead: **short flashes, one long flash, a pause**. Count the short flashes:
 | **2** | `·  ·  —` | Setup mode is open. |
 | **3** | `·  ·  ·  —` | Re-pairing: the switch is leaving Hue and restarts in a few seconds. |
 
+While you hold [the button](#the-button), codes 2 and 3 show what letting go will do.
+
 Other patterns:
 
 | LED | Meaning |
@@ -49,6 +52,21 @@ Other patterns:
 
 The codes show even when *Status LED* is set to *Off*.
 
+## The button
+
+The small button on the front of the switch does two things, depending on how
+long you hold it. While you hold it, the LED shows the code of what will happen
+when you let go:
+
+| Hold | LED while holding | When you let go |
+|---|---|---|
+| less than 5 seconds | unchanged | nothing |
+| 5 to 10 seconds | code 2 (`·  ·  —`) | the switch restarts in [setup mode](#changing-settings-setup-mode) |
+| more than 10 seconds | code 3 (`·  ·  ·  —`) | [re-pair](#re-adding-or-moving-to-another-bridge): the switch leaves Hue and waits to be added again |
+
+Once the switch is built in, the button is usually out of reach. Everything it
+does can also be done by switching the power off and on (see below).
+
 ## Changing settings (setup mode)
 
 Settings are changed from a phone, on a small web page served by the switch
@@ -58,6 +76,8 @@ itself. No app or internet is needed.
 quick succession**, using the switch or circuit breaker that powers it. Leave it
 off for a few seconds each time so the switch really powers down, and on for no
 more than about 5 seconds. After the third time the LED shows code 2 (`·  ·  —`).
+If you can reach [the button](#the-button), holding it for 5 seconds does the
+same.
 
 **2. Connect.** On your phone, join the WiFi network **`Shelly-Fan-Setup-XXXX`**
 (no password). `XXXX` is a code unique to your switch, so several switches in
@@ -106,8 +126,9 @@ immediately and change no settings:
 ## Re-adding or moving to another bridge
 
 Open setup mode, turn on **Forget Hue & re-pair**, press **Save & reboot**. A few
-seconds after the restart the switch disconnects from Hue, restarts again and
-shows code 1 (`·  —`). Then add it as described above, on the same bridge or a
+seconds after the restart the switch shows code 3 (`·  ·  ·  —`), disconnects
+from Hue, restarts again and shows code 1 (`·  —`). Holding
+[the button](#the-button) for more than 10 seconds does the same. Then add it as described above, on the same bridge or a
 new one.
 
 The switch comes back as a new light, because a Hue Bridge won't take back a

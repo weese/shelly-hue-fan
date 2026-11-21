@@ -37,10 +37,14 @@ use config::{Config, LedMode};
 const RELAY_GPIO: u8 = 4;
 const LED_GPIO: Option<u8> = Some(11);
 
-/// Onboard button (active low). Held while the switch powers up, it triggers
-/// the same re-pair as the portal: new Zigbee address, then factory reset.
-/// Mostly for the bench; once installed the portal is the way to re-pair.
-const RESET_BUTTON_GPIO: Option<u8> = Some(1);
+/// Onboard button. Held 5–10 s and released: restart into the setup portal.
+/// Held over 10 s and released: re-pair (new Zigbee address, factory reset).
+/// The level at boot counts as "released", so its polarity doesn't matter.
+const BUTTON_GPIO: Option<u8> = Some(1);
+const HOLD_SETUP: Duration = Duration::from_secs(5);
+const HOLD_REPAIR: Duration = Duration::from_secs(10);
+/// Held longer than this counts as stuck: no action on release.
+const HOLD_STUCK: Duration = Duration::from_secs(30);
 
 // ───────────────────────── Power-cycle → portal ─────────────────────────────
 
@@ -91,8 +95,7 @@ static LED_CODE_OVERRIDE: std::sync::atomic::AtomicU8 = std::sync::atomic::Atomi
 // huesmith calls `Peripherals::take()` in launch(), so we can't take the HAL
 // pins; we drive the relay/LED through the C GPIO API by pin number instead.
 
-/// True if the active-low button on `pin` reads pressed for ~50 ms.
-fn button_held(pin: u8) -> bool {
+fn configure_input_pullup(pin: u8) -> bool {
     let cfg = esp_idf_svc::sys::gpio_config_t {
         pin_bit_mask: 1u64 << pin,
         mode: esp_idf_svc::sys::gpio_mode_t_GPIO_MODE_INPUT,
@@ -100,15 +103,11 @@ fn button_held(pin: u8) -> bool {
         pull_down_en: esp_idf_svc::sys::gpio_pulldown_t_GPIO_PULLDOWN_DISABLE,
         intr_type: esp_idf_svc::sys::gpio_int_type_t_GPIO_INTR_DISABLE,
     };
-    if unsafe { esp_idf_svc::sys::gpio_config(&cfg) } != esp_idf_svc::sys::ESP_OK {
-        return false;
-    }
-    std::thread::sleep(Duration::from_millis(5)); // let the pull-up settle
-    (0..5).all(|_| {
-        std::thread::sleep(Duration::from_millis(10));
-        let level = unsafe { esp_idf_svc::sys::gpio_get_level(pin as i32) };
-        level == 0
-    })
+    unsafe { esp_idf_svc::sys::gpio_config(&cfg) == esp_idf_svc::sys::ESP_OK }
+}
+
+fn get_level(pin: u8) -> i32 {
+    unsafe { esp_idf_svc::sys::gpio_get_level(pin as i32) }
 }
 
 fn configure_output(pin: u8) {
@@ -244,6 +243,99 @@ fn schedule_zigbee_factory_reset(nvs: EspDefaultNvsPartition) {
         .ok();
 }
 
+// ──────────────────────────── Onboard button ────────────────────────────────
+
+/// What a button hold has reached so far.
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Hold {
+    Short,
+    Setup,
+    Repair,
+    Stuck,
+}
+
+fn hold_stage(held: Duration) -> Hold {
+    if held >= HOLD_STUCK {
+        Hold::Stuck
+    } else if held >= HOLD_REPAIR {
+        Hold::Repair
+    } else if held >= HOLD_SETUP {
+        Hold::Setup
+    } else {
+        Hold::Short
+    }
+}
+
+/// Watch the onboard button while running normally. The LED shows the code of
+/// the action a release would trigger; the action runs on release.
+fn spawn_button_watcher(pin: u8, nvs: EspDefaultNvsPartition) {
+    const POLL: Duration = Duration::from_millis(20);
+    const DEBOUNCE: Duration = Duration::from_millis(60);
+    std::thread::Builder::new()
+        .name("button".into())
+        .stack_size(4 * 1024)
+        .spawn(move || {
+            if !configure_input_pullup(pin) {
+                log::error!("button: cannot configure GPIO{pin}");
+                return;
+            }
+            std::thread::sleep(Duration::from_secs(1));
+            let idle = get_level(pin);
+            log::info!("button: GPIO{pin} released level = {idle}");
+            loop {
+                std::thread::sleep(POLL);
+                if get_level(pin) == idle {
+                    continue;
+                }
+                // Pressed: track the hold until the button reads released
+                // for DEBOUNCE, showing the pending action's code meanwhile.
+                let pressed_at = Instant::now();
+                let mut released_since: Option<Instant> = None;
+                let mut stage = Hold::Short;
+                loop {
+                    std::thread::sleep(POLL);
+                    if get_level(pin) == idle {
+                        let since = *released_since.get_or_insert_with(Instant::now);
+                        if since.elapsed() >= DEBOUNCE {
+                            break;
+                        }
+                        continue;
+                    }
+                    released_since = None;
+                    let now = hold_stage(pressed_at.elapsed());
+                    if now != stage {
+                        stage = now;
+                        let code = match stage {
+                            Hold::Setup => CODE_SETUP_MODE,
+                            Hold::Repair => CODE_REPAIRING,
+                            Hold::Short | Hold::Stuck => 0,
+                        };
+                        LED_CODE_OVERRIDE.store(code, Ordering::Relaxed);
+                        if stage == Hold::Stuck {
+                            log::warn!("button: held over {}s, ignoring", HOLD_STUCK.as_secs());
+                        }
+                    }
+                }
+                match stage {
+                    Hold::Setup => {
+                        console_print("button: restarting into setup mode");
+                        config::boot_count_force_portal(&nvs);
+                        std::thread::sleep(Duration::from_millis(200));
+                        unsafe { esp_idf_svc::sys::esp_restart() };
+                    }
+                    Hold::Repair => {
+                        console_print("button: re-pair");
+                        rotate_identity_and_factory_reset(&nvs);
+                    }
+                    Hold::Short | Hold::Stuck => {
+                        LED_CODE_OVERRIDE.store(0, Ordering::Relaxed);
+                    }
+                }
+            }
+        })
+        .ok();
+}
+
 // ─────────── Serial "reboot to download mode" (jump to bootloader) ───────────
 //
 // Lets the device be reflashed over UART with no boot jumper: send a magic token
@@ -321,10 +413,11 @@ fn handle_command(cmd: &str, nvs: &EspDefaultNvsPartition) {
                 .collect::<Vec<_>>()
                 .join(":");
             console_print(&format!(
-                "status fw={} id={} slot={} factory_new={fnew} joined={joined} pan=0x{pan:04X} ieee={ieee} mac_off={} min_on={} run_on={} led={} relay_ah={} led_ah={}",
+                "status fw={} id={} slot={} btn={} factory_new={fnew} joined={joined} pan=0x{pan:04X} ieee={ieee} mac_off={} min_on={} run_on={} led={} relay_ah={} led_ah={}",
                 env!("FW_VERSION"),
                 device_id(),
                 running_slot(),
+                BUTTON_GPIO.map_or(-1, get_level),
                 c.mac_offset,
                 c.min_on_secs,
                 c.run_on_secs,
@@ -817,9 +910,6 @@ fn main() {
         log::warn!("re-pair requested from portal — scheduling address change + factory reset");
         Config::clear_repair_flag(&nvs);
         schedule_zigbee_factory_reset(nvs.clone());
-    } else if RESET_BUTTON_GPIO.is_some_and(button_held) {
-        log::warn!("button held at boot — scheduling address change + factory reset");
-        schedule_zigbee_factory_reset(nvs.clone());
     }
 
     // LED: brief power-on flicker (polarity-agnostic), then settle per config.
@@ -840,6 +930,10 @@ fn main() {
         .stack_size(6 * 1024)
         .spawn(move || relay_worker(rx, cfg))
         .expect("spawn relay worker");
+
+    if let Some(pin) = BUTTON_GPIO {
+        spawn_button_watcher(pin, nvs.clone());
+    }
 
     // Serial command console on UART0 (config / reboot / dfu / repair / status),
     // with the RX pull-up for a floating-safe RX in production.

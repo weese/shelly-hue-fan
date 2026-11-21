@@ -140,6 +140,14 @@ pub fn boot_count_inc(part: &EspDefaultNvsPartition) -> u8 {
     }
 }
 
+/// Make the next boot open the setup portal, as if the power had been cycled
+/// enough times (used by the onboard button).
+pub fn boot_count_force_portal(part: &EspDefaultNvsPartition) {
+    if let Ok(nvs) = EspNvs::new(part.clone(), BOOT_NS, true) {
+        let _ = nvs.set_u8(BOOT_KEY, u8::MAX - 1);
+    }
+}
+
 /// Reset the rapid-power-cycle counter to zero.
 pub fn boot_count_clear(part: &EspDefaultNvsPartition) {
     if let Ok(nvs) = EspNvs::new(part.clone(), BOOT_NS, true) {

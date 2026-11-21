@@ -51,7 +51,7 @@ mains.
 | Serial flash after an upload (`--erase-parts otadata`) | Verified |
 | Relay switching, run-on timing and relay polarity on mains | Verified |
 | LED blink codes for waiting / setup mode / re-pairing | Built; not yet seen on the device |
-| Onboard button held at power-up re-pairs (new address) | Built; not yet tested |
+| Onboard button: hold 5 s for setup mode, 10 s to re-pair | Built; not yet tested |
 
 ## Credits
 

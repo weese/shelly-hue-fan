@@ -19,7 +19,7 @@ see the [installation guide](INSTALL.md), for everyday use the
 |---|---|---|
 | Relay | 4 | drives the fan |
 | Status LED | 11 (inverted, LOW = lit) | status indicator |
-| Onboard button | 1 | huesmith reset pin at boot |
+| Onboard button | 1 | hold 5–10 s: setup mode; over 10 s: re-pair |
 | Switch input SW | 10 | not used |
 | NTC | 3 | not used |
 | BL0942 power meter | 6 / 7 | not used |
@@ -48,7 +48,7 @@ just listens.
 | Command | Effect |
 |---|---|
 | `help` | list commands |
-| `status` | device id, running firmware slot, pairing state, PAN ID, Zigbee address, all settings |
+| `status` | firmware version, device id, running slot, raw button level (`btn`), pairing state, PAN ID, Zigbee address, all settings |
 | `reboot` | restart |
 | `dfu` | reboot into the ROM bootloader for flashing |
 | `repair` | move to a new Zigbee address, leave the network, erase the pairing, reboot |
@@ -92,6 +92,12 @@ hex digits of the chip's WiFi MAC address.
 
 ## Behaviour notes
 
+- **Button polarity is detected, not assumed.** The pin is read with the
+  internal pull-up; whatever level it has one second after boot counts as
+  "released". The pin references disagree on the polarity (ESPHome reads it as
+  active-high, the Tasmota template as an ordinary active-low button), and
+  `status` shows the raw level as `btn=` for checking. A hold over 30 s counts
+  as a stuck button and does nothing.
 - **Zigbee OTA frames are dropped.** huesmith advertises the Zigbee OTA Upgrade
   client cluster without implementing it. The Hue Bridge sends an OTA command
   right after pairing, the Zigbee stack then asserts
