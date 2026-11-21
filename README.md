@@ -31,8 +31,8 @@ app and automations control lamp and fan together. No cloud, no extra app.
 
 ## Status
 
-Running on a real Shelly 1PM Gen4 (S4SW-001P16EU), tested on the bench. Not
-yet tested on mains.
+Running on a real Shelly 1PM Gen4 (S4SW-001P16EU), tested on the bench and on
+mains.
 
 | Feature | State |
 |---|---|
@@ -48,7 +48,7 @@ yet tested on mains.
 | Crash right after pairing (Zigbee OTA frame) | Fixed and verified |
 | Firmware upload through the setup page (pairing and settings kept) | Verified |
 | Serial flash after an upload (`--erase-parts otadata`) | Verified |
-| Relay switching, run-on timing and relay polarity on mains | **Not tested** |
+| Relay switching, run-on timing and relay polarity on mains | Verified |
 | Onboard button reset at boot | Not tested |
 
 ## Credits
