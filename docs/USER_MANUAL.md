@@ -108,7 +108,7 @@ restarted. Settings and the Hue pairing are kept.
 
 Only use files from this project's
 [releases page](https://github.com/weese/shelly-hue-fan/releases) or from
-someone you trust. This function hasn't been tested end to end yet.
+someone you trust. The upload takes about 10 seconds.
 
 ## Troubleshooting
 

@@ -46,7 +46,8 @@ yet tested on mains.
 | Setup mode: Normal/Inverted wiring choices are saved | Verified |
 | Re-pairing with the same bridge (new address each time) | Verified |
 | Crash right after pairing (Zigbee OTA frame) | Fixed and verified |
-| Firmware upload through the setup page | Not yet completed end to end |
+| Firmware upload through the setup page (pairing and settings kept) | Verified |
+| Serial flash after an upload (`--erase-parts otadata`) | Verified |
 | Relay switching, run-on timing and relay polarity on mains | **Not tested** |
 | Onboard button reset at boot | Not tested |
 

@@ -131,7 +131,7 @@ committed by accident.
 ## 5. Flash
 
 ```bash
-cargo espflash flash --release --port "$PORT" --before no-reset --after no-reset --baud 115200 --partition-table partitions.csv
+cargo espflash flash --release --port "$PORT" --before no-reset --after no-reset --baud 115200 --partition-table partitions.csv --erase-parts otadata
 ```
 
 Then unplug the adapter, **remove the bridge between pins 1 and 2**, and plug it
@@ -147,7 +147,9 @@ python3 tools/console.py -p "$PORT" status
 `factory_new=1 joined=0` is expected at this point.
 
 `--before no-reset --after no-reset` is needed because the header has no reset
-lines for the adapter.
+lines for the adapter. `--erase-parts otadata` clears the record of which
+firmware slot to start, so the chip starts the slot that was just written (see
+[updating the firmware later](#updating-the-firmware-later)).
 
 ## 6. Pair with Hue
 
@@ -186,7 +188,7 @@ python3 tools/console.py -p "$PORT" dfu
 ```
 
 ```bash
-cargo espflash flash --release --port "$PORT" --before no-reset --after no-reset --baud 115200 --partition-table partitions.csv
+cargo espflash flash --release --port "$PORT" --before no-reset --after no-reset --baud 115200 --partition-table partitions.csv --erase-parts otadata
 ```
 
 Then **unplug and replug the adapter once**. The chip stays in download mode
@@ -202,10 +204,12 @@ Once installed, the setup page can install a firmware file instead (see
 espflash save-image --chip esp32c6 --flash-size 8mb --partition-table partitions.csv target/riscv32imac-esp-espidf/release/shelly-hue-fan firmware.bin
 ```
 
-Caveat: a serial flash writes the first firmware slot (`ota_0`). After an update
-through the setup page the device runs from `ota_1`, and a serial flash alone
-would then not take effect. In that case also erase the `otadata` partition
-(espflash has `--erase-parts`; not tried yet).
+The switch has two firmware slots. An upload through the setup page goes to the
+slot not currently running and switches to it; a serial flash always writes the
+first slot (`ota_0`). That is why the serial flash command erases `otadata`:
+without it, a switch that last ran an uploaded firmware from `ota_1` would keep
+starting the old firmware there. The console's `status` shows the running slot
+as `slot=ota_0` or `slot=ota_1`.
 
 ## Restoring stock firmware
 

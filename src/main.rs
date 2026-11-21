@@ -235,6 +235,16 @@ fn console_print(s: &str) {
     }
 }
 
+/// Label of the firmware slot this image runs from (`ota_0` or `ota_1`).
+fn running_slot() -> String {
+    let part = unsafe { esp_idf_svc::sys::esp_ota_get_running_partition() };
+    if part.is_null() {
+        return "?".into();
+    }
+    let label = unsafe { std::ffi::CStr::from_ptr((*part).label.as_ptr()) };
+    label.to_string_lossy().into_owned()
+}
+
 /// Handle one serial console command line.
 fn handle_command(cmd: &str, nvs: &EspDefaultNvsPartition) {
     let mut it = cmd.split_whitespace();
@@ -256,8 +266,9 @@ fn handle_command(cmd: &str, nvs: &EspDefaultNvsPartition) {
                 .collect::<Vec<_>>()
                 .join(":");
             console_print(&format!(
-                "status id={} factory_new={fnew} joined={joined} pan=0x{pan:04X} ieee={ieee} mac_off={} min_on={} run_on={} led={} relay_ah={} led_ah={}",
+                "status id={} slot={} factory_new={fnew} joined={joined} pan=0x{pan:04X} ieee={ieee} mac_off={} min_on={} run_on={} led={} relay_ah={} led_ah={}",
                 device_id(),
+                running_slot(),
                 c.mac_offset,
                 c.min_on_secs,
                 c.run_on_secs,

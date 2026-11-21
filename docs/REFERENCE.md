@@ -48,7 +48,7 @@ just listens.
 | Command | Effect |
 |---|---|
 | `help` | list commands |
-| `status` | device id, pairing state, PAN ID, Zigbee address, all settings |
+| `status` | device id, running firmware slot, pairing state, PAN ID, Zigbee address, all settings |
 | `reboot` | restart |
 | `dfu` | reboot into the ROM bootloader for flashing |
 | `repair` | move to a new Zigbee address, leave the network, erase the pairing, reboot |
