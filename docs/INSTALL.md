@@ -95,11 +95,12 @@ builds take seconds.
 | 6 | TX | adapter **RX** |
 | 7 | — | nothing |
 
-The header is described in the
-[blakadder template for the Shelly 1PM Gen4](https://templates.blakadder.com/shelly_1PM_Gen4.html).
-Its pinout is the same as the Shelly Plus 1PM's, whose
-[blakadder page](https://templates.blakadder.com/shelly_plus_1PM.html) has a
-photo showing where pin 1 is. Find pin 1 on your board before you connect power.
+The header is the row of seven holes on the back of the Shelly, at the lower
+left. Pin 1 is the hole at the lower end of the row:
+
+<img src="images/shelly-1pm-gen4-backside.png" alt="Back of the Shelly 1PM Gen4 with the 7-pin header at the lower left; pin 1 is the lowest hole" width="400">
+
+Find pin 1 on your board before you connect power.
 
 Plug in the adapter and find its serial port:
 
