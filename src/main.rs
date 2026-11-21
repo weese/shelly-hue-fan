@@ -93,26 +93,98 @@ fn set_led(cfg: &Config, lamp_on: bool, relay_closed: bool) {
     }
 }
 
-/// Request a proper Zigbee factory reset: a network *leave* plus NVRAM erase plus
-/// reboot, via the esp-zigbee API. Wiping the `zb_storage` partition alone does
-/// NOT clear the joined state (the stack still reports joined), so we must use
-/// `esp_zb_factory_reset`. It runs a few seconds after boot, once huesmith has
-/// brought the stack up; the device then reboots itself factory-new and
-/// re-enters Hue pairing.
-fn schedule_zigbee_factory_reset() {
+/// Short device id: the last two bytes of the chip's base MAC as four hex digits
+/// (e.g. `2314` for `CC:BA:97:EA:23:14`). Stable for the device, used in the
+/// setup-mode SSID and shown on the setup page and in `status`.
+fn device_id() -> String {
+    let mut mac = [0u8; 6];
+    unsafe {
+        esp_idf_svc::sys::esp_read_mac(
+            mac.as_mut_ptr(),
+            esp_idf_svc::sys::esp_mac_type_t_ESP_MAC_WIFI_STA,
+        );
+    }
+    format!("{:02X}{:02X}", mac[4], mac[5])
+}
+
+/// Zigbee identity (IEEE EUI-64) for an address offset, in the ZBOSS
+/// little-endian order huesmith's `.mac()` expects; `None` = the chip's own
+/// address. A Hue Bridge does not re-interview an address it has seen before
+/// (e.g. after the light was deleted in the app), so every re-pair moves on.
+///
+/// - `0`: the chip's hardware address.
+/// - `1..=3`: the chip's other universally administered addresses. ESP32-C6
+///   chips are allocated four consecutive MACs (base .. base+3).
+/// - `4..=255`: locally administered addresses (U/L bit set), built from this
+///   chip's own bytes plus the offset, so they can't collide with any
+///   manufacturer-assigned address.
+fn identity_eui64(offset: u8) -> Option<[u8; 8]> {
+    if offset == 0 {
+        return None;
+    }
+    // Display order, e.g. CC:BA:97:FF:FE:EA:23:14 (OUI, FF:FE filler, base[3..6]).
+    let mut eui = [0u8; 8];
+    unsafe {
+        esp_idf_svc::sys::esp_read_mac(
+            eui.as_mut_ptr(),
+            esp_idf_svc::sys::esp_mac_type_t_ESP_MAC_IEEE802154,
+        );
+    }
+    if offset <= 3 {
+        eui[7] = eui[7].wrapping_add(offset);
+    } else {
+        eui[0] |= 0x02; // locally administered; I/G bit stays 0 (unicast)
+        eui[4] = offset; // replaces the FE filler byte
+    }
+    eui.reverse();
+    Some(eui)
+}
+
+/// Offset for the next re-pair. Never reuses one; after 255 it wraps to 4.
+fn next_mac_offset(cur: u8) -> u8 {
+    if cur == u8::MAX {
+        4
+    } else {
+        cur + 1
+    }
+}
+
+/// Move to a fresh Zigbee address, then factory-reset: leave the network, erase
+/// the pairing, reboot. The device comes back factory-new under the new address,
+/// so the bridge treats it as a new light even if it knew the old one.
+fn rotate_identity_and_factory_reset(nvs: &EspDefaultNvsPartition) {
+    let mut c = Config::load(nvs);
+    let old = c.mac_offset;
+    c.mac_offset = next_mac_offset(old);
+    match c.save(nvs) {
+        Ok(()) => console_print(&format!(
+            "re-pair: address offset {old} -> {}; factory reset (leave + erase + reboot)",
+            c.mac_offset
+        )),
+        Err(e) => console_print(&format!(
+            "re-pair: could not save new address ({e}), keeping offset {old}; factory reset"
+        )),
+    }
+    std::thread::sleep(Duration::from_millis(200));
+    unsafe {
+        let locked = esp_zb_lock_acquire(u32::MAX);
+        esp_zb_factory_reset();
+        if locked {
+            esp_zb_lock_release();
+        }
+    }
+}
+
+/// Re-pair requested from the setup portal: wait until huesmith has the stack
+/// up, then rotate the address and factory-reset.
+fn schedule_zigbee_factory_reset(nvs: EspDefaultNvsPartition) {
     std::thread::Builder::new()
         .name("factoryreset".into())
         .stack_size(4 * 1024)
-        .spawn(|| {
+        .spawn(move || {
             std::thread::sleep(Duration::from_secs(5));
-            log::warn!("re-pair: performing Zigbee factory reset (leave + erase + reboot)");
-            unsafe {
-                let locked = esp_zb_lock_acquire(u32::MAX);
-                esp_zb_factory_reset();
-                if locked {
-                    esp_zb_lock_release();
-                }
-            }
+            log::warn!("re-pair requested from portal");
+            rotate_identity_and_factory_reset(&nvs);
         })
         .ok();
 }
@@ -168,15 +240,24 @@ fn handle_command(cmd: &str, nvs: &EspDefaultNvsPartition) {
     let mut it = cmd.split_whitespace();
     match it.next() {
         Some("help") => console_print(
-            "cmds: status | reboot | dfu | repair | aps <0|1> | loglevel <0-5> | set <min_on|run_on|led|relay_ah|led_ah|mac> <n>",
+            "cmds: status | reboot | dfu | repair (new address + factory reset) | aps <0|1> | loglevel <0-5> | set <min_on|run_on|led|relay_ah|led_ah|mac> <n>",
         ),
         Some("status") => {
             let c = Config::load(nvs);
             let joined = unsafe { esp_zb_bdb_dev_joined() } as u8;
             let fnew = unsafe { esp_zb_bdb_is_factory_new() } as u8;
             let pan = unsafe { esp_zb_get_pan_id() };
+            let mut ieee = [0u8; 8];
+            unsafe { esp_zb_get_long_address(ieee.as_mut_ptr()) };
+            let ieee = ieee
+                .iter()
+                .rev()
+                .map(|b| format!("{b:02X}"))
+                .collect::<Vec<_>>()
+                .join(":");
             console_print(&format!(
-                "status factory_new={fnew} joined={joined} pan=0x{pan:04X} mac_off={} min_on={} run_on={} led={} relay_ah={} led_ah={}",
+                "status id={} factory_new={fnew} joined={joined} pan=0x{pan:04X} ieee={ieee} mac_off={} min_on={} run_on={} led={} relay_ah={} led_ah={}",
+                device_id(),
                 c.mac_offset,
                 c.min_on_secs,
                 c.run_on_secs,
@@ -195,17 +276,7 @@ fn handle_command(cmd: &str, nvs: &EspDefaultNvsPartition) {
             std::thread::sleep(Duration::from_millis(200));
             reboot_to_download();
         }
-        Some("repair") => {
-            console_print("zigbee factory reset: leave + erase + reboot");
-            std::thread::sleep(Duration::from_millis(200));
-            unsafe {
-                let locked = esp_zb_lock_acquire(u32::MAX);
-                esp_zb_factory_reset();
-                if locked {
-                    esp_zb_lock_release();
-                }
-            }
-        }
+        Some("repair") => rotate_identity_and_factory_reset(nvs),
         Some("set") => {
             let key = it.next();
             let val = it.next().and_then(|v| v.parse::<u32>().ok());
@@ -389,6 +460,7 @@ extern "C" {
     fn esp_zb_bdb_dev_joined() -> bool;
     fn esp_zb_bdb_is_factory_new() -> bool;
     fn esp_zb_get_pan_id() -> u16;
+    fn esp_zb_get_long_address(addr: *mut u8);
     fn esp_zb_factory_reset();
     fn esp_zb_lock_acquire(block_ticks: u32) -> bool;
     fn esp_zb_lock_release();
@@ -619,17 +691,24 @@ fn main() {
     if let Some(threshold) = PORTAL_CYCLES {
         if count >= threshold {
             config::boot_count_clear(&nvs);
-            // Blink the LED continuously while the portal is up.
+            // Blink the LED fast while the portal is up; "Flash LED" on the
+            // setup page switches to long flashes so this device stands out.
             if let Some(pin) = LED_GPIO {
                 configure_output(pin);
+                let led_ah = Config::load(&nvs).led_active_high;
                 std::thread::Builder::new()
                     .name("ledblink".into())
                     .stack_size(2 * 1024)
-                    .spawn(move || loop {
-                        set_level(pin, 1);
-                        std::thread::sleep(Duration::from_millis(200));
-                        set_level(pin, 0);
-                        std::thread::sleep(Duration::from_millis(200));
+                    .spawn(move || {
+                        let lit = |on: bool| set_level(pin, if on == led_ah { 1 } else { 0 });
+                        loop {
+                            let (on_ms, off_ms) =
+                                if portal::identify_active() { (700, 150) } else { (200, 200) };
+                            lit(true);
+                            std::thread::sleep(Duration::from_millis(on_ms));
+                            lit(false);
+                            std::thread::sleep(Duration::from_millis(off_ms));
+                        }
                     })
                     .ok();
             }
@@ -659,9 +738,9 @@ fn main() {
     // proper Zigbee factory reset a few seconds after the stack is up (it reboots
     // the device factory-new, so this boot's remaining setup is just interim).
     if cfg.repair_on_boot {
-        log::warn!("re-pair requested from portal — scheduling Zigbee factory reset");
+        log::warn!("re-pair requested from portal — scheduling address change + factory reset");
         Config::clear_repair_flag(&nvs);
-        schedule_zigbee_factory_reset();
+        schedule_zigbee_factory_reset(nvs.clone());
     }
 
     // LED: brief power-on blink (polarity-agnostic), then settle per config.
@@ -696,18 +775,7 @@ fn main() {
     if let Some(pin) = RESET_BUTTON_GPIO {
         light = light.reset_pin(pin);
     }
-    if mac_offset != 0 {
-        // Present a different IEEE address: hardware EUI-64 with the last byte
-        // shifted. huesmith wants ZBOSS little-endian order (mac[7] = first byte).
-        let mut eui = [0u8; 8];
-        unsafe {
-            esp_idf_svc::sys::esp_read_mac(
-                eui.as_mut_ptr(),
-                esp_idf_svc::sys::esp_mac_type_t_ESP_MAC_IEEE802154,
-            );
-        }
-        eui[7] = eui[7].wrapping_add(mac_offset);
-        eui.reverse();
+    if let Some(eui) = identity_eui64(mac_offset) {
         light = light.mac(eui);
     }
     light.launch(); // never returns; runs the Zigbee stack

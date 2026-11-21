@@ -11,7 +11,7 @@
 //! The page is served entirely from flash (the AP has no internet), so all CSS
 //! and JS are inline — no CDN fonts or libraries.
 
-use core::sync::atomic::{AtomicU32, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::net::UdpSocket;
 use std::time::Duration;
 
@@ -27,15 +27,29 @@ use esp_idf_svc::wifi::{AccessPointConfiguration, AuthMethod, Configuration as W
 
 use crate::config::{Config, LedMode};
 
-const AP_SSID: &str = "Shelly-Fan-Setup";
+/// The SSID is this prefix plus the device id, e.g. `Shelly-Fan-Setup-2314`, so
+/// several devices in setup mode at once don't clash.
+const AP_SSID_PREFIX: &str = "Shelly-Fan-Setup";
 /// Fallback only; the real gateway IP is read from the AP netif at runtime.
 const AP_IP: [u8; 4] = [192, 168, 4, 1];
 const PORTAL_TIMEOUT_SECS: u32 = 5 * 60;
+/// How long "Flash LED" changes the LED pattern.
+const IDENTIFY_SECS: u32 = 10;
 
 type HandlerErr = Box<dyn std::error::Error>;
 
 /// Last HTTP activity, seconds since boot (32-bit RISC-V has no `AtomicU64`).
 static LAST_ACTIVITY_S: AtomicU32 = AtomicU32::new(0);
+/// "Flash LED" is active until this time (seconds since boot).
+static IDENTIFY_UNTIL_S: AtomicU32 = AtomicU32::new(0);
+/// Relay state while in setup mode (the relay worker doesn't run here).
+static RELAY_ON: AtomicBool = AtomicBool::new(false);
+
+/// Whether the LED should currently show the identify pattern (read by the
+/// LED thread `main` starts for setup mode).
+pub fn identify_active() -> bool {
+    now_secs() < IDENTIFY_UNTIL_S.load(Ordering::Relaxed)
+}
 
 fn now_secs() -> u32 {
     ((unsafe { esp_idf_svc::sys::esp_timer_get_time() } as u64) / 1_000_000) as u32
@@ -52,9 +66,17 @@ pub fn run(modem: Modem, sysloop: EspSystemEventLoop, nvs: EspDefaultNvsPartitio
     esp_idf_svc::log::EspLogger::initialize_default();
     touch();
 
+    // Relay in a defined state (open) for the "Relay" test button.
+    let relay_active_high = Config::load(&nvs).relay_active_high;
+    crate::configure_output(crate::RELAY_GPIO);
+    crate::set_relay(relay_active_high, false);
+
+    let id = crate::device_id();
+    let ssid = format!("{AP_SSID_PREFIX}-{id}");
+
     let mut wifi = EspWifi::new(modem, sysloop, Some(nvs.clone())).expect("wifi new");
     wifi.set_configuration(&WifiConfig::AccessPoint(AccessPointConfiguration {
-        ssid: AP_SSID.try_into().expect("ssid"),
+        ssid: ssid.as_str().try_into().expect("ssid"),
         auth_method: AuthMethod::None,
         channel: 1,
         max_connections: 4,
@@ -71,7 +93,7 @@ pub fn run(modem: Modem, sysloop: EspSystemEventLoop, nvs: EspDefaultNvsPartitio
         .map(|i| i.ip.octets())
         .unwrap_or(AP_IP);
     log::warn!(
-        "Setup portal: AP '{AP_SSID}' up at http://{}.{}.{}.{}",
+        "Setup portal: AP '{ssid}' up at http://{}.{}.{}.{}",
         ap_ip[0],
         ap_ip[1],
         ap_ip[2],
@@ -150,6 +172,32 @@ pub fn run(modem: Modem, sysloop: EspSystemEventLoop, nvs: EspDefaultNvsPartitio
         })
         .expect("POST /ota");
 
+    // POST /relay — toggle the relay (switches the fan when on mains).
+    server
+        .fn_handler("/relay", Method::Post, move |req| -> Result<(), HandlerErr> {
+            touch();
+            let on = !RELAY_ON.load(Ordering::Relaxed);
+            crate::set_relay(relay_active_high, on);
+            RELAY_ON.store(on, Ordering::Relaxed);
+            log::warn!("Portal: relay {}", if on { "on" } else { "off" });
+            let mut resp =
+                req.into_response(200, None, &[("Content-Type", "application/json")])?;
+            resp.write_all(if on { b"{\"on\":true}" } else { b"{\"on\":false}" })?;
+            Ok(())
+        })
+        .expect("POST /relay");
+
+    // POST /identify — long LED flashes for IDENTIFY_SECS.
+    server
+        .fn_handler("/identify", Method::Post, move |req| -> Result<(), HandlerErr> {
+            touch();
+            IDENTIFY_UNTIL_S.store(now_secs() + IDENTIFY_SECS, Ordering::Relaxed);
+            let mut resp = req.into_ok_response()?;
+            resp.write_all(b"ok")?;
+            Ok(())
+        })
+        .expect("POST /identify");
+
     // GET /* — catch-all: serve the form for the root AND every OS captive probe
     // (Apple /hotspot-detect.html, Android /generate_204, Windows /ncsi.txt, …),
     // so the "sign in to network" sheet opens automatically.
@@ -158,7 +206,7 @@ pub fn run(modem: Modem, sysloop: EspSystemEventLoop, nvs: EspDefaultNvsPartitio
         .fn_handler("/*", Method::Get, move |req| -> Result<(), HandlerErr> {
             touch();
             let cfg = Config::load(&nvs_get);
-            let html = render_form(&cfg);
+            let html = render_form(&cfg, &id, RELAY_ON.load(Ordering::Relaxed));
             let mut resp = req.into_ok_response()?;
             resp.write_all(html.as_bytes())?;
             Ok(())
@@ -274,14 +322,18 @@ fn rsel(mode: LedMode, want: LedMode) -> &'static str {
     }
 }
 
-fn render_form(c: &Config) -> String {
-    PAGE.replace("__MIN_ON__", &c.min_on_secs.to_string())
+fn render_form(c: &Config, id: &str, relay_on: bool) -> String {
+    PAGE.replace("__ID__", id)
+        .replace("__RELAY_ON__", if relay_on { "true" } else { "false" })
+        .replace("__MIN_ON__", &c.min_on_secs.to_string())
         .replace("__RUN_ON__", &c.run_on_secs.to_string())
         .replace("__SEL_OFF__", rsel(c.led_mode, LedMode::Off))
         .replace("__SEL_LAMP__", rsel(c.led_mode, LedMode::Lamp))
         .replace("__SEL_RELAY__", rsel(c.led_mode, LedMode::Relay))
-        .replace("__RELAY_AH__", checked(c.relay_active_high))
-        .replace("__LED_AH__", checked(c.led_active_high))
+        .replace("__RELAY_NORMAL__", checked(c.relay_active_high))
+        .replace("__RELAY_INV__", checked(!c.relay_active_high))
+        .replace("__LED_NORMAL__", checked(c.led_active_high))
+        .replace("__LED_INV__", checked(!c.led_active_high))
 }
 
 fn reboot_page(title: &str) -> String {
@@ -304,7 +356,7 @@ const PAGE: &str = r###"<!doctype html>
 <html lang=en>
 <meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>Fan Controller</title>
+<title>Fan Controller __ID__</title>
 <style>
 :root{
   --bg:#0d1117;--panel:#161b22;--panel2:#1b212a;--line:#2a313b;
@@ -337,6 +389,7 @@ input[type=number]:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 .seg input{position:absolute;opacity:0;pointer-events:none}
 .seg label{text-align:center;padding:10px 4px;border-radius:8px;font-size:13.5px;color:var(--muted);cursor:pointer;transition:.15s;user-select:none}
 .seg input:checked+label{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.seg.two{grid-template-columns:1fr 1fr}
 .row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 0;border-top:1px solid var(--line)}
 .row:first-of-type{border-top:0;padding-top:0}
 .row .l{font-size:14px;font-weight:500}.row .l small{display:block;color:var(--muted);font-size:12px;font-weight:400}
@@ -350,6 +403,8 @@ input[type=number]:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
   background:var(--accent);color:var(--accent-ink);transition:filter .15s,transform .05s}
 .btn:hover{filter:brightness(1.08)}.btn:active{transform:translateY(1px)}
 .btn.ghost{background:transparent;color:var(--txt);border:1px solid var(--line)}
+.btn.ghost.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .file{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;background:var(--panel2);
   border:1.5px dashed var(--line);border-radius:11px;padding:16px;text-align:center;color:var(--muted);font-size:13.5px;cursor:pointer;transition:border-color .15s}
 .file:hover{border-color:var(--accent)}.file input{display:none}
@@ -360,7 +415,7 @@ input[type=number]:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 <body>
 <div class=wrap>
   <div class=brand><div class=dot></div>
-    <div><h1>Fan Controller</h1><span>Shelly 1PM Gen4 &middot; Hue</span></div></div>
+    <div><h1>Fan Controller</h1><span>Shelly 1PM Gen4 &middot; Hue &middot; __ID__</span></div></div>
 
   <form method=POST action=/save>
     <div class=card>
@@ -385,10 +440,18 @@ input[type=number]:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 
     <div class=card>
       <h2>Wiring</h2>
-      <div class=row><div class=l>Relay active-high<small>Uncheck if the relay is inverted</small></div>
-        <label class=sw><input type=checkbox name=relay_ah __RELAY_AH__><span class=tk></span></label></div>
-      <div class=row><div class=l>LED active-high<small>Uncheck if the LED is inverted</small></div>
-        <label class=sw><input type=checkbox name=led_ah __LED_AH__><span class=tk></span></label></div>
+      <div class=field><label>Relay output</label>
+        <div class="seg two">
+          <input type=radio id=rn name=relay_ah value=1 __RELAY_NORMAL__><label for=rn>Normal</label>
+          <input type=radio id=ri name=relay_ah value=0 __RELAY_INV__><label for=ri>Inverted</label>
+        </div>
+        <p class=sub>Choose &ldquo;Inverted&rdquo; if the fan runs while Hue shows it off.</p></div>
+      <div class=field><label>Status LED output</label>
+        <div class="seg two">
+          <input type=radio id=en name=led_ah value=1 __LED_NORMAL__><label for=en>Normal</label>
+          <input type=radio id=ei name=led_ah value=0 __LED_INV__><label for=ei>Inverted</label>
+        </div>
+        <p class=sub>The Shelly 1PM Gen4&rsquo;s LED is wired inverted (the default).</p></div>
       <div class=row><div class="l danger">Forget Hue &amp; re-pair<small>Erase pairing on next reboot</small></div>
         <label class=sw><input type=checkbox name=repair><span class=tk></span></label></div>
     </div>
@@ -406,9 +469,24 @@ input[type=number]:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
     </form>
   </div>
 
+  <div class=card>
+    <h2>Identify &amp; test</h2>
+    <div class=acts>
+      <button class="btn ghost" type=button id=ident>Flash LED</button>
+      <button class="btn ghost" type=button id=relay>Relay</button>
+    </div>
+    <p class=sub>&ldquo;Flash LED&rdquo; makes this device&rsquo;s LED give long flashes for 10&nbsp;s. &ldquo;Relay&rdquo; switches the fan on and off when the switch is on mains.</p>
+  </div>
+
   <p class=foot>Portal closes after 5 min idle<br>Do not power off during a firmware update</p>
 </div>
 <script>
+var rb=document.getElementById('relay');
+function rs(on){rb.textContent='Relay: '+(on?'on':'off');rb.classList.toggle('on',on)}
+rs(__RELAY_ON__);
+rb.onclick=async function(){try{var r=await fetch('/relay',{method:'POST'});rs((await r.json()).on)}catch(e){}};
+var ib=document.getElementById('ident');
+ib.onclick=async function(){try{await fetch('/identify',{method:'POST'});ib.textContent='Flashing…';setTimeout(function(){ib.textContent='Flash LED'},10000)}catch(e){}};
 var fw=document.getElementById('fw'),fn=document.getElementById('fname');
 fw.onchange=function(){fn.textContent=fw.files[0]?fw.files[0].name:'Choose a .bin firmware file'};
 document.getElementById('ota').onsubmit=async function(e){e.preventDefault();
@@ -449,7 +527,12 @@ fn apply_form(cfg: &mut Config, body: &str) {
     if let Some(v) = field(body, "led_mode").and_then(|s| s.parse::<u8>().ok()) {
         cfg.led_mode = LedMode::from_u8(v);
     }
-    cfg.relay_active_high = present(body, "relay_ah");
-    cfg.led_active_high = present(body, "led_ah");
+    // Radio groups: "1" = Normal (active-high), "0" = Inverted.
+    if let Some(v) = field(body, "relay_ah") {
+        cfg.relay_active_high = v == "1";
+    }
+    if let Some(v) = field(body, "led_ah") {
+        cfg.led_active_high = v == "1";
+    }
     cfg.repair_on_boot = present(body, "repair");
 }

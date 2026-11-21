@@ -51,8 +51,11 @@ pub struct Config {
     pub led_active_high: bool,
     /// One-shot: on the next boot, forget the Hue pairing and re-enter pairing.
     pub repair_on_boot: bool,
-    /// Added to the last byte of the hardware IEEE address (0 = real address).
-    /// Lets the device present itself to the bridge as a brand-new device.
+    /// Which Zigbee (IEEE) address to present. A different address lets the
+    /// device appear to the bridge as a brand-new device.
+    /// 0 = hardware address, 1..=3 = the chip's other assigned addresses,
+    /// 4..=255 = locally administered addresses (see `identity_eui64` in main.rs).
+    /// Every re-pair moves to the next value automatically.
     pub mac_offset: u8,
 }
 
