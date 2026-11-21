@@ -43,7 +43,7 @@ yet tested on mains.
 | Setup mode: opens after 3 power cycles, page loads on a phone | Verified |
 | Setup mode: Save & reboot | Verified |
 | Setup mode: network name with device id, Flash LED and Relay buttons | Verified |
-| Setup mode: Normal/Inverted wiring choices | Built; saving them not yet tested on the device |
+| Setup mode: Normal/Inverted wiring choices are saved | Verified |
 | Re-pairing with the same bridge (new address each time) | Verified |
 | Crash right after pairing (Zigbee OTA frame) | Fixed and verified |
 | Firmware upload through the setup page | Not yet completed end to end |
