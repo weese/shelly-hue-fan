@@ -32,13 +32,13 @@ settings are kept.
 
 In normal operation the LED is simply on or off, following the fan (see the
 *Status LED* setting). When something needs attention it repeats a blink code
-instead: **short flashes, one long flash, a pause**. Count the short flashes:
+instead: **a few short flashes, then a long pause**. Count the flashes:
 
 | Code | Pattern | Meaning |
 |---|---|---|
-| **1** | `·  —` | Not connected to a Hue Bridge; waiting to be added. |
-| **2** | `·  ·  —` | Setup mode is open. |
-| **3** | `·  ·  ·  —` | Re-pairing: the switch is leaving Hue and restarts in a few seconds. |
+| **1** | `·` | Not connected to a Hue Bridge; waiting to be added. |
+| **2** | `· ·` | Setup mode is open. |
+| **3** | `· · ·` | Re-pairing: the switch is leaving Hue and restarts in a few seconds. |
 
 While you hold [the button](#the-button), codes 2 and 3 show what letting go will do.
 
@@ -61,8 +61,8 @@ when you let go:
 | Hold | LED while holding | When you let go |
 |---|---|---|
 | less than 5 seconds | unchanged | nothing |
-| 5 to 10 seconds | code 2 (`·  ·  —`) | the switch restarts in [setup mode](#changing-settings-setup-mode) |
-| more than 10 seconds | code 3 (`·  ·  ·  —`) | [re-pair](#re-adding-or-moving-to-another-bridge): the switch leaves Hue and waits to be added again |
+| 5 to 10 seconds | code 2 (`· ·`) | the switch restarts in [setup mode](#changing-settings-setup-mode) |
+| more than 10 seconds | code 3 (`· · ·`) | [re-pair](#re-adding-or-moving-to-another-bridge): the switch leaves Hue and waits to be added again |
 
 It works the same if you already hold the button while switching the power on;
 the time then counts from about two seconds after power-on.
@@ -78,7 +78,7 @@ itself. No app or internet is needed.
 **1. Open setup mode.** Switch the fan's circuit **off and on three times in
 quick succession**, using the switch or circuit breaker that powers it. Leave it
 off for a few seconds each time so the switch really powers down, and on for no
-more than about 5 seconds. After the third time the LED shows code 2 (`·  ·  —`).
+more than about 5 seconds. After the third time the LED shows code 2 (`· ·`).
 If you can reach [the button](#the-button), holding it for 5 seconds does the
 same.
 
@@ -124,7 +124,7 @@ checking that it works.
 ## Adding it to a Hue Bridge
 
 1. In the Hue app: **Settings → Add device → Add light → Search**.
-2. While the search runs, the switch's LED should show code 1 (`·  —`). It joins
+2. While the search runs, the switch's LED should show code 1 (`·`). It joins
    within a few seconds and appears as a new light.
 3. Give it a name (e.g. *Bathroom fan*) and put it in the **same room or zone as
    the bathroom lamp**. Check that your Hue button controls that room or zone.
@@ -132,8 +132,8 @@ checking that it works.
 ## Re-adding or moving to another bridge
 
 Open setup mode, turn on **Forget Hue & re-pair**, press **Save & reboot**. A few
-seconds after the restart the switch shows code 3 (`·  ·  ·  —`), disconnects
-from Hue, restarts again and shows code 1 (`·  —`). Holding
+seconds after the restart the switch shows code 3 (`· · ·`), disconnects
+from Hue, restarts again and shows code 1 (`·`). Holding
 [the button](#the-button) for more than 10 seconds does the same. Then add it as described above, on the same bridge or a
 new one.
 
@@ -156,14 +156,14 @@ someone you trust. The upload takes about 10 seconds.
 | Problem | What to try |
 |---|---|
 | The fan keeps running after switching off | Normal for 6 minutes (or whatever *Run-on after off* is set to). |
-| The fan does nothing | Check the circuit breaker. Code 1 (`·  —`) means the switch isn't connected to Hue. |
+| The fan does nothing | Check the circuit breaker. Code 1 (`·`) means the switch isn't connected to Hue. |
 | The fan runs when Hue says off | In setup mode, switch *Relay output* to the other setting. |
 | Hue shows the fan as unreachable | The switch has no power, or it is too far from the nearest Hue lamp or the bridge. |
 | Setup mode opened by accident | It opens when the power comes on three times in a row for less than 6 seconds each. Press *Save & reboot*, or wait 5 minutes. |
 | `Shelly-Fan-Setup-…` doesn't appear | The off/on cycles were too slow or too short. Try again: off a few seconds, on briefly, three times. |
 | The settings page doesn't open | Check the phone is connected to `Shelly-Fan-Setup-…`, then open `192.168.71.1`. |
 | Several switches are in setup mode | Each has its own network name. On the page, **Flash LED** shows which switch you're on. |
-| Hue can't find the switch | The LED must show code 1 (`·  —`) while the app searches. If it was added to this bridge before, use *Forget Hue & re-pair* first. |
+| Hue can't find the switch | The LED must show code 1 (`·`) while the app searches. If it was added to this bridge before, use *Forget Hue & re-pair* first. |
 
 The switch is connected to mains. Don't open the cover or the wall box yourself;
 leave changes to the wiring to an electrician.

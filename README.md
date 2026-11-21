@@ -22,7 +22,7 @@ app and automations control lamp and fan together. No cloud, no extra app.
 ### Quick help for the installed switch
 
 - **Change settings:** switch the fan's power off and on three times quickly.
-  The LED repeats two short, one long flash; join the WiFi
+  The LED repeats two flashes and a pause; join the WiFi
   `Shelly-Fan-Setup-XXXX` on your phone.
   [Details](docs/USER_MANUAL.md#changing-settings-setup-mode)
 - **Add it to Hue:** Hue app → Settings → Add device → Add light → Search.

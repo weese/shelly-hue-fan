@@ -63,37 +63,32 @@ const PORTAL_CYCLES: Option<u8> = Some(3);
 /// quick off/on sequences accumulate toward opening the portal.
 const RESET_ARM_WINDOW: Duration = Duration::from_secs(6);
 
-/// Quick flashes at power-on, as an alive indicator. Faster than the short
-/// flashes of the blink codes, and never followed directly by a long one.
+/// Quick flashes at power-on, as an alive indicator. Shorter and faster than
+/// the flashes of the blink codes, and shown only once.
 const BOOT_FLASHES: u8 = 3;
 const BOOT_FLASH_MS: u64 = 120;
 
 // ─────────────────────────────── LED codes ──────────────────────────────────
 //
-// Status codes repeat N short flashes and one long flash, then a pause:
-//   1  · —      not joined to a Hue network, waiting to be added
-//   2  · · —    setup portal open
-//   3  · · · —  re-pairing: leaving Hue, erasing, about to restart
+// Status codes repeat N short flashes, then a long pause:
+//   1  ·        not joined to a Hue network, waiting to be added
+//   2  · ·      setup portal open
+//   3  · · ·    re-pairing: leaving Hue, erasing, about to restart
 // They show regardless of the "Status LED" setting. Keep docs/USER_MANUAL.md
 // in sync when changing them.
 pub const CODE_WAITING_FOR_HUE: u8 = 1;
 pub const CODE_SETUP_MODE: u8 = 2;
 pub const CODE_REPAIRING: u8 = 3;
 
-const CODE_SHORT_MS: u64 = 150;
-const CODE_LONG_MS: u64 = 700;
-const CODE_GAP_MS: u64 = 250;
-const CODE_PAUSE_MS: u64 = 1500;
+const CODE_FLASH_MS: u64 = 200;
+const CODE_GAP_MS: u64 = 300;
+const CODE_PAUSE_MS: u64 = 2000;
 
 /// Whether the LED is lit `t_ms` after blink code `code` started.
 pub fn code_lit(code: u8, t_ms: u64) -> bool {
-    let shorts = code as u64 * (CODE_SHORT_MS + CODE_GAP_MS);
-    let p = t_ms % (shorts + CODE_LONG_MS + CODE_PAUSE_MS);
-    if p < shorts {
-        p % (CODE_SHORT_MS + CODE_GAP_MS) < CODE_SHORT_MS
-    } else {
-        p - shorts < CODE_LONG_MS
-    }
+    let flashes = code as u64 * (CODE_FLASH_MS + CODE_GAP_MS);
+    let p = t_ms % (flashes + CODE_PAUSE_MS);
+    p < flashes && p % (CODE_FLASH_MS + CODE_GAP_MS) < CODE_FLASH_MS
 }
 
 /// Code shown instead of the normal LED state (0 = none); set while a
