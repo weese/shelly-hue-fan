@@ -3,14 +3,15 @@
 For everyday use of a bathroom fan switch running this firmware. To flash the
 firmware onto a Shelly, see the [installation guide](INSTALL.md).
 
-- [What it does](#what-it-does)
-- [The status light](#the-status-light)
-- [The button](#the-button)
-- [Changing settings (setup mode)](#changing-settings-setup-mode)
-- [Adding it to a Hue Bridge](#adding-it-to-a-hue-bridge)
-- [Re-adding or moving to another bridge](#re-adding-or-moving-to-another-bridge)
-- [Firmware update](#firmware-update)
-- [Troubleshooting](#troubleshooting)
+- [User manual](#user-manual)
+  - [What it does](#what-it-does)
+  - [The status light](#the-status-light)
+  - [The button](#the-button)
+  - [Changing settings (setup mode)](#changing-settings-setup-mode)
+  - [Adding it to a Hue Bridge](#adding-it-to-a-hue-bridge)
+  - [Re-adding or moving to another bridge](#re-adding-or-moving-to-another-bridge)
+  - [Firmware update](#firmware-update)
+  - [Troubleshooting](#troubleshooting)
 
 ## What it does
 
@@ -93,7 +94,8 @@ work. Switch back to your home WiFi when you're done.
 <table>
   <tr>
     <td valign="top"><img src="images/portal-1-timing-led.png" alt="Setup page, top: timing and status LED" width="300"></td>
-    <td valign="top"><img src="images/portal-2-wiring-firmware.png" alt="Setup page, bottom: wiring, re-pairing, firmware update, identify and test" width="300"></td>
+    <td valign="top"><img src="images/portal-2-wiring-firmware.png" alt="Setup page, bottom: wiring, re-pairing, firmware update" width="300"></td>
+    <td valign="top"><img src="images/portal-3-identify.png" alt="identify and test" width="300"></td>
   </tr>
 </table>
 
