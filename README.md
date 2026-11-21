@@ -22,7 +22,8 @@ app and automations control lamp and fan together. No cloud, no extra app.
 ### Quick help for the installed switch
 
 - **Change settings:** switch the fan's power off and on three times quickly.
-  The LED blinks fast; join the WiFi `Shelly-Fan-Setup-XXXX` on your phone.
+  The LED repeats two short, one long flash; join the WiFi
+  `Shelly-Fan-Setup-XXXX` on your phone.
   [Details](docs/USER_MANUAL.md#changing-settings-setup-mode)
 - **Add it to Hue:** Hue app → Settings → Add device → Add light → Search.
   [Details](docs/USER_MANUAL.md#adding-it-to-a-hue-bridge)
@@ -49,7 +50,8 @@ mains.
 | Firmware upload through the setup page (pairing and settings kept) | Verified |
 | Serial flash after an upload (`--erase-parts otadata`) | Verified |
 | Relay switching, run-on timing and relay polarity on mains | Verified |
-| Onboard button reset at boot | Not tested |
+| LED blink codes for waiting / setup mode / re-pairing | Built; not yet seen on the device |
+| Onboard button held at power-up re-pairs (new address) | Built; not yet tested |
 
 ## Credits
 

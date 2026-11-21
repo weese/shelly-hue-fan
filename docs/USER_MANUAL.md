@@ -29,12 +29,25 @@ settings are kept.
 
 ## The status light
 
+In normal operation the LED is simply on or off, following the fan (see the
+*Status LED* setting). When something needs attention it repeats a blink code
+instead: **short flashes, one long flash, a pause**. Count the short flashes:
+
+| Code | Pattern | Meaning |
+|---|---|---|
+| **1** | `·  —` | Not connected to a Hue Bridge; waiting to be added. |
+| **2** | `·  ·  —` | Setup mode is open. |
+| **3** | `·  ·  ·  —` | Re-pairing: the switch is leaving Hue and restarts in a few seconds. |
+
+Other patterns:
+
 | LED | Meaning |
 |---|---|
-| 3 quick blinks, then a few seconds of slow blinking | Just powered up. |
-| Slow blinking (keeps going) | Not connected to a Hue Bridge; waiting to be added. |
-| Fast blinking | Setup mode is open. |
-| On / off | Follows the fan's on/off state in Hue (default setting). |
+| Rapid flicker for under a second | Just powered up. |
+| Long flashes, no short ones | *Flash LED* was pressed on the setup page. |
+| On / off | Normal operation; follows the fan (default setting). |
+
+The codes show even when *Status LED* is set to *Off*.
 
 ## Changing settings (setup mode)
 
@@ -44,7 +57,7 @@ itself. No app or internet is needed.
 **1. Open setup mode.** Switch the fan's circuit **off and on three times in
 quick succession**, using the switch or circuit breaker that powers it. Leave it
 off for a few seconds each time so the switch really powers down, and on for no
-more than about 5 seconds. After the third time the LED blinks fast.
+more than about 5 seconds. After the third time the LED shows code 2 (`·  ·  —`).
 
 **2. Connect.** On your phone, join the WiFi network **`Shelly-Fan-Setup-XXXX`**
 (no password). `XXXX` is a code unique to your switch, so several switches in
@@ -69,7 +82,7 @@ itself and changes nothing.
 |---|---|
 | **Minimum on-time** | Seconds the room must stay on before the fan starts. `0` = immediately. With `60`, a quick visit doesn't start the fan. |
 | **Run-on after off** | Seconds the fan keeps running after the room is switched off. Default `360` (6 minutes). |
-| **Status LED** | *Off*: always dark. *Lamp*: lit while Hue shows the fan as on. *Relay*: lit while the fan actually runs, including the run-on. |
+| **Status LED** | *Off*: dark in normal operation (blink codes still show). *Lamp*: lit while Hue shows the fan as on. *Relay*: lit while the fan actually runs, including the run-on. |
 | **Relay output** | *Normal* or *Inverted*. Set once at installation: if the fan runs when Hue says off, choose *Inverted*. |
 | **Status LED output** | *Normal* or *Inverted*. The default (*Inverted*) is right for this switch; change it only if the LED is lit when it should be dark. |
 | **Forget Hue & re-pair** | Disconnects from the Hue Bridge so the switch can be added again. See [below](#re-adding-or-moving-to-another-bridge). |
@@ -85,7 +98,7 @@ immediately and change no settings:
 ## Adding it to a Hue Bridge
 
 1. In the Hue app: **Settings → Add device → Add light → Search**.
-2. While the search runs, the switch's LED should be blinking slowly. It joins
+2. While the search runs, the switch's LED should show code 1 (`·  —`). It joins
    within a few seconds and appears as a new light.
 3. Give it a name (e.g. *Bathroom fan*) and put it in the **same room or zone as
    the bathroom lamp**. Check that your Hue button controls that room or zone.
@@ -94,7 +107,8 @@ immediately and change no settings:
 
 Open setup mode, turn on **Forget Hue & re-pair**, press **Save & reboot**. A few
 seconds after the restart the switch disconnects from Hue, restarts again and
-blinks slowly. Then add it as described above, on the same bridge or a new one.
+shows code 1 (`·  —`). Then add it as described above, on the same bridge or a
+new one.
 
 The switch comes back as a new light, because a Hue Bridge won't take back a
 light it has seen before. The old entry in the Hue app becomes unreachable;
@@ -115,13 +129,14 @@ someone you trust. The upload takes about 10 seconds.
 | Problem | What to try |
 |---|---|
 | The fan keeps running after switching off | Normal for 6 minutes (or whatever *Run-on after off* is set to). |
-| The fan does nothing | Check the circuit breaker. Slow blinking means the switch has lost its Hue connection. |
+| The fan does nothing | Check the circuit breaker. Code 1 (`·  —`) means the switch isn't connected to Hue. |
 | The fan runs when Hue says off | In setup mode, switch *Relay output* to the other setting. |
 | Hue shows the fan as unreachable | The switch has no power, or it is too far from the nearest Hue lamp or the bridge. |
+| Setup mode opened by accident | It opens when the power comes on three times in a row for less than 6 seconds each. Press *Save & reboot*, or wait 5 minutes. |
 | `Shelly-Fan-Setup-…` doesn't appear | The off/on cycles were too slow or too short. Try again: off a few seconds, on briefly, three times. |
 | The settings page doesn't open | Check the phone is connected to `Shelly-Fan-Setup-…`, then open `192.168.71.1`. |
 | Several switches are in setup mode | Each has its own network name. On the page, **Flash LED** shows which switch you're on. |
-| Hue can't find the switch | The LED must be blinking slowly while the app searches. If it was added to this bridge before, use *Forget Hue & re-pair* first. |
+| Hue can't find the switch | The LED must show code 1 (`·  —`) while the app searches. If it was added to this bridge before, use *Forget Hue & re-pair* first. |
 
 The switch is connected to mains. Don't open the cover or the wall box yourself;
 leave changes to the wiring to an electrician.

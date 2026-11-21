@@ -51,8 +51,41 @@ const PORTAL_CYCLES: Option<u8> = Some(3);
 /// quick off/on sequences accumulate toward opening the portal.
 const RESET_ARM_WINDOW: Duration = Duration::from_secs(6);
 
-/// Quick blinks at normal boot, as a power-on / alive indicator.
-const BOOT_BLINKS: u8 = 3;
+/// Rapid flicker at power-on, as an alive indicator (distinct from the codes).
+const BOOT_FLICKERS: u8 = 8;
+
+// ─────────────────────────────── LED codes ──────────────────────────────────
+//
+// Status codes repeat N short flashes and one long flash, then a pause:
+//   1  · —      not joined to a Hue network, waiting to be added
+//   2  · · —    setup portal open
+//   3  · · · —  re-pairing: leaving Hue, erasing, about to restart
+// They show regardless of the "Status LED" setting. Keep docs/USER_MANUAL.md
+// in sync when changing them.
+pub const CODE_WAITING_FOR_HUE: u8 = 1;
+pub const CODE_SETUP_MODE: u8 = 2;
+pub const CODE_REPAIRING: u8 = 3;
+
+const CODE_SHORT_MS: u64 = 150;
+const CODE_LONG_MS: u64 = 700;
+const CODE_GAP_MS: u64 = 250;
+const CODE_PAUSE_MS: u64 = 1500;
+
+/// Whether the LED is lit `t_ms` after blink code `code` started.
+pub fn code_lit(code: u8, t_ms: u64) -> bool {
+    let shorts = code as u64 * (CODE_SHORT_MS + CODE_GAP_MS);
+    let p = t_ms % (shorts + CODE_LONG_MS + CODE_PAUSE_MS);
+    if p < shorts {
+        p % (CODE_SHORT_MS + CODE_GAP_MS) < CODE_SHORT_MS
+    } else {
+        p - shorts < CODE_LONG_MS
+    }
+}
+
+/// Code shown instead of the normal LED state (0 = none); set while a
+/// re-pair is pending.
+static LED_CODE_OVERRIDE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
 
 // ─────────────────────── Raw GPIO via ESP-IDF (by pin) ───────────────────────
 // huesmith calls `Peripherals::take()` in launch(), so we can't take the HAL
@@ -203,8 +236,9 @@ fn schedule_zigbee_factory_reset(nvs: EspDefaultNvsPartition) {
         .name("factoryreset".into())
         .stack_size(4 * 1024)
         .spawn(move || {
+            LED_CODE_OVERRIDE.store(CODE_REPAIRING, Ordering::Relaxed);
             std::thread::sleep(Duration::from_secs(5));
-            log::warn!("re-pair requested from portal");
+            log::warn!("re-pair requested");
             rotate_identity_and_factory_reset(&nvs);
         })
         .ok();
@@ -589,14 +623,13 @@ fn relay_worker(rx: Receiver<Cmd>, cfg: Config) {
     let mut st = St::Idle;
     set_relay(cfg.relay_active_high, false);
 
-    // LED pairing indicator: slow-blink while NOT joined to a Hue network, solid
-    // (per led_mode) once joined. Skip the Zigbee query for the first few seconds
-    // while the stack is still coming up — just blink.
+    // LED: a status code while one applies (re-pair pending, or not joined to a
+    // Hue network), otherwise on/off per led_mode. The Zigbee stack isn't
+    // queried for the first few seconds while it is still coming up.
     let start = Instant::now();
-    let tick = Duration::from_millis(100);
-    let blink_interval = Duration::from_millis(600);
-    let mut blink_on = false;
-    let mut last_blink = Instant::now();
+    let tick = Duration::from_millis(50);
+    let mut code = 0u8;
+    let mut code_since = Instant::now();
 
     log::info!(
         "relay worker: relay=GPIO{RELAY_GPIO} min_on={}s run_on={}s led={:?}",
@@ -675,15 +708,19 @@ fn relay_worker(rx: Receiver<Cmd>, cfg: Config) {
             _ => {}
         }
 
-        // LED: slow-blink while not joined (pairing mode), else solid per config.
-        let joined = start.elapsed() >= Duration::from_secs(3) && unsafe { esp_zb_bdb_dev_joined() };
-        if cfg.led_mode != LedMode::Off && !joined {
-            if last_blink.elapsed() >= blink_interval {
-                blink_on = !blink_on;
-                last_blink = Instant::now();
-            }
+        let stack_up = start.elapsed() >= Duration::from_secs(3);
+        let want = match LED_CODE_OVERRIDE.load(Ordering::Relaxed) {
+            0 if stack_up && !unsafe { esp_zb_bdb_dev_joined() } => CODE_WAITING_FOR_HUE,
+            c => c,
+        };
+        if want != code {
+            code = want;
+            code_since = Instant::now();
+        }
+        if code != 0 {
             if let Some(pin) = LED_GPIO {
-                set_level(pin, if blink_on == cfg.led_active_high { 1 } else { 0 });
+                let lit = code_lit(code, code_since.elapsed().as_millis() as u64);
+                set_level(pin, if lit == cfg.led_active_high { 1 } else { 0 });
             }
         } else {
             set_led(&cfg, lamp_on, relay_closed);
@@ -724,8 +761,8 @@ fn main() {
     if let Some(threshold) = PORTAL_CYCLES {
         if count >= threshold {
             config::boot_count_clear(&nvs);
-            // Blink the LED fast while the portal is up; "Flash LED" on the
-            // setup page switches to long flashes so this device stands out.
+            // Show the setup-mode code while the portal is up; "Flash LED" on
+            // the setup page switches to long flashes so this device stands out.
             if let Some(pin) = LED_GPIO {
                 configure_output(pin);
                 let led_ah = Config::load(&nvs).led_active_high;
@@ -734,13 +771,19 @@ fn main() {
                     .stack_size(2 * 1024)
                     .spawn(move || {
                         let lit = |on: bool| set_level(pin, if on == led_ah { 1 } else { 0 });
+                        let since = Instant::now();
                         loop {
-                            let (on_ms, off_ms) =
-                                if portal::identify_active() { (700, 150) } else { (200, 200) };
-                            lit(true);
-                            std::thread::sleep(Duration::from_millis(on_ms));
-                            lit(false);
-                            std::thread::sleep(Duration::from_millis(off_ms));
+                            if portal::identify_active() {
+                                // "Flash LED": long flashes, unlike any code.
+                                lit(true);
+                                std::thread::sleep(Duration::from_millis(700));
+                                lit(false);
+                                std::thread::sleep(Duration::from_millis(150));
+                            } else {
+                                let t = since.elapsed().as_millis() as u64;
+                                lit(code_lit(CODE_SETUP_MODE, t));
+                                std::thread::sleep(Duration::from_millis(25));
+                            }
                         }
                     })
                     .ok();
@@ -779,14 +822,14 @@ fn main() {
         schedule_zigbee_factory_reset(nvs.clone());
     }
 
-    // LED: brief power-on blink (polarity-agnostic), then settle per config.
+    // LED: brief power-on flicker (polarity-agnostic), then settle per config.
     if let Some(pin) = LED_GPIO {
         configure_output(pin);
-        for _ in 0..BOOT_BLINKS {
+        for _ in 0..BOOT_FLICKERS {
             set_level(pin, 1);
-            std::thread::sleep(Duration::from_millis(120));
+            std::thread::sleep(Duration::from_millis(40));
             set_level(pin, 0);
-            std::thread::sleep(Duration::from_millis(120));
+            std::thread::sleep(Duration::from_millis(40));
         }
     }
 
