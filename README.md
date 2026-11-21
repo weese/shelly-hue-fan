@@ -17,6 +17,9 @@ Built on [huesmith](https://github.com/canack/huesmith) (Rust, ESP32-C6), which
 provides the Hue-compatible Zigbee light. This project adds the Shelly hardware
 layer, the timer logic, a serial console, and a WiFi setup portal.
 
+**Using the installed switch?** See the [user guide](docs/USER_GUIDE.md). This
+README is about building, flashing and debugging.
+
 ## Status
 
 Flashed and running on a real Shelly 1PM Gen4 (S4SW-001P16EU).
@@ -29,7 +32,8 @@ Flashed and running on a real Shelly 1PM Gen4 (S4SW-001P16EU).
 | Serial console and jumper-free flashing | Verified |
 | Re-pairing with the same bridge (`repair` + `set mac`) | Verified |
 | Crash after pairing (Zigbee OTA frame) | Fixed and verified |
-| Setup portal: opens after 3 power cycles, captive page, Save | Worked on the bench before the console was added; not retested since |
+| Setup portal: opens after 3 power cycles, page loads on a phone | Verified (also after the console was added) |
+| Setup portal: Save & reboot | Verified before the console was added |
 | Firmware upload through the portal | Never completed end to end (bench supply too weak for WiFi) |
 | Relay switching, run-on timing and relay polarity on mains | Not tested |
 | Onboard button reset at boot | Not tested |
@@ -234,7 +238,12 @@ device is installed.
 ## Setup portal
 
 For changing settings once the device is installed and the serial header is out
-of reach.
+of reach. The [user guide](docs/USER_GUIDE.md) explains it for end users.
+
+<p>
+  <img src="docs/images/portal-1-timing-led.png" alt="Setup page: timing and status LED" width="300">
+  <img src="docs/images/portal-2-wiring-firmware.png" alt="Setup page: wiring, re-pairing and firmware update" width="300">
+</p>
 
 1. Switch the mains off and on **3 times in quick succession** (each on-time
    shorter than about 6 seconds). On the third boot the LED blinks fast and the
