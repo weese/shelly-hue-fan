@@ -40,7 +40,9 @@ const LED_GPIO: Option<u8> = Some(11);
 /// Onboard button. Held 5–10 s and released: restart into the setup portal.
 /// Held over 10 s and released: re-pair (new Zigbee address, factory reset).
 /// The level at boot counts as "released", so its polarity doesn't matter.
-const BUTTON_GPIO: Option<u8> = Some(1);
+/// Read with the internal pull-down: with the pull-up, presses were not seen
+/// (the button apparently drives the pin high and has no resistor of its own).
+pub(crate) const BUTTON_GPIO: Option<u8> = Some(1);
 const HOLD_SETUP: Duration = Duration::from_secs(5);
 const HOLD_REPAIR: Duration = Duration::from_secs(10);
 /// Held longer than this counts as stuck: no action on release.
@@ -95,18 +97,18 @@ static LED_CODE_OVERRIDE: std::sync::atomic::AtomicU8 = std::sync::atomic::Atomi
 // huesmith calls `Peripherals::take()` in launch(), so we can't take the HAL
 // pins; we drive the relay/LED through the C GPIO API by pin number instead.
 
-fn configure_input_pullup(pin: u8) -> bool {
+pub(crate) fn configure_button_input(pin: u8) -> bool {
     let cfg = esp_idf_svc::sys::gpio_config_t {
         pin_bit_mask: 1u64 << pin,
         mode: esp_idf_svc::sys::gpio_mode_t_GPIO_MODE_INPUT,
-        pull_up_en: esp_idf_svc::sys::gpio_pullup_t_GPIO_PULLUP_ENABLE,
-        pull_down_en: esp_idf_svc::sys::gpio_pulldown_t_GPIO_PULLDOWN_DISABLE,
+        pull_up_en: esp_idf_svc::sys::gpio_pullup_t_GPIO_PULLUP_DISABLE,
+        pull_down_en: esp_idf_svc::sys::gpio_pulldown_t_GPIO_PULLDOWN_ENABLE,
         intr_type: esp_idf_svc::sys::gpio_int_type_t_GPIO_INTR_DISABLE,
     };
     unsafe { esp_idf_svc::sys::gpio_config(&cfg) == esp_idf_svc::sys::ESP_OK }
 }
 
-fn get_level(pin: u8) -> i32 {
+pub(crate) fn get_level(pin: u8) -> i32 {
     unsafe { esp_idf_svc::sys::gpio_get_level(pin as i32) }
 }
 
@@ -275,7 +277,7 @@ fn spawn_button_watcher(pin: u8, nvs: EspDefaultNvsPartition) {
         .name("button".into())
         .stack_size(4 * 1024)
         .spawn(move || {
-            if !configure_input_pullup(pin) {
+            if !configure_button_input(pin) {
                 log::error!("button: cannot configure GPIO{pin}");
                 return;
             }

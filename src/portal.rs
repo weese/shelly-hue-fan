@@ -44,6 +44,8 @@ static LAST_ACTIVITY_S: AtomicU32 = AtomicU32::new(0);
 static IDENTIFY_UNTIL_S: AtomicU32 = AtomicU32::new(0);
 /// Relay state while in setup mode (the relay worker doesn't run here).
 static RELAY_ON: AtomicBool = AtomicBool::new(false);
+/// Button level when the portal started (= released), or -1 without a button.
+static BUTTON_IDLE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(-1);
 
 /// Whether the LED should currently show the identify pattern (read by the
 /// LED thread `main` starts for setup mode).
@@ -69,6 +71,12 @@ pub fn run(modem: Modem, sysloop: EspSystemEventLoop, nvs: EspDefaultNvsPartitio
     // Relay in a defined state (open) for the "Relay" test button.
     let relay_active_high = Config::load(&nvs).relay_active_high;
     crate::configure_output(crate::RELAY_GPIO);
+    if let Some(pin) = crate::BUTTON_GPIO {
+        if crate::configure_button_input(pin) {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+            BUTTON_IDLE.store(crate::get_level(pin), Ordering::Relaxed);
+        }
+    }
     crate::set_relay(relay_active_high, false);
 
     let id = crate::device_id();
@@ -186,6 +194,25 @@ pub fn run(modem: Modem, sysloop: EspSystemEventLoop, nvs: EspDefaultNvsPartitio
             Ok(())
         })
         .expect("POST /relay");
+
+    // GET /button — live button state for the "Identify & test" card. Polled
+    // by the page, so it doesn't count as activity for the idle timeout.
+    server
+        .fn_handler("/button", Method::Get, move |req| -> Result<(), HandlerErr> {
+            let idle = BUTTON_IDLE.load(Ordering::Relaxed);
+            let body = match crate::BUTTON_GPIO {
+                Some(pin) if idle >= 0 => {
+                    let level = crate::get_level(pin);
+                    format!("{{\"level\":{level},\"pressed\":{}}}", level != idle)
+                }
+                _ => "{\"level\":-1,\"pressed\":false}".to_string(),
+            };
+            let mut resp =
+                req.into_response(200, None, &[("Content-Type", "application/json")])?;
+            resp.write_all(body.as_bytes())?;
+            Ok(())
+        })
+        .expect("GET /button");
 
     // POST /identify — long LED flashes for IDENTIFY_SECS.
     server
@@ -477,6 +504,7 @@ input[type=number]:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
       <button class="btn ghost" type=button id=relay>Relay</button>
     </div>
     <p class=sub>&ldquo;Flash LED&rdquo; makes this device&rsquo;s LED give long flashes for 10&nbsp;s. &ldquo;Relay&rdquo; switches the fan on and off when the switch is on mains.</p>
+    <p class=sub id=btn>Button: &hellip;</p>
   </div>
 
   <p class=foot>Firmware __FW__<br>Portal closes after 5 min idle<br>Do not power off during a firmware update</p>
@@ -486,6 +514,9 @@ var rb=document.getElementById('relay');
 function rs(on){rb.textContent='Relay: '+(on?'on':'off');rb.classList.toggle('on',on)}
 rs(__RELAY_ON__);
 rb.onclick=async function(){try{var r=await fetch('/relay',{method:'POST'});rs((await r.json()).on)}catch(e){}};
+var bt=document.getElementById('btn');
+setInterval(async function(){try{var b=await(await fetch('/button')).json();
+ bt.textContent=b.level<0?'Button: not available':'Button: '+(b.pressed?'pressed':'released')+' (input '+(b.level?'high':'low')+')';}catch(e){}},400);
 var ib=document.getElementById('ident');
 ib.onclick=async function(){try{await fetch('/identify',{method:'POST'});ib.textContent='Flashing…';setTimeout(function(){ib.textContent='Flash LED'},10000)}catch(e){}};
 var fw=document.getElementById('fw'),fn=document.getElementById('fname');

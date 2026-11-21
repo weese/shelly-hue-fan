@@ -115,6 +115,9 @@ immediately and change no settings:
 - **Relay**: switches the fan on and off directly, for testing. It starts off
   each time setup mode opens.
 
+Below them, **Button** shows *pressed* while you hold the switch's button, for
+checking that it works.
+
 ## Adding it to a Hue Bridge
 
 1. In the Hue app: **Settings → Add device → Add light → Search**.
