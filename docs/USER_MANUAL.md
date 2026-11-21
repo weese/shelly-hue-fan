@@ -54,10 +54,12 @@ not, open **192.168.71.1** in a browser.
 While your phone is on this network it has no internet and the Hue app doesn't
 work. Switch back to your home WiFi when you're done.
 
-<p>
-  <img src="images/portal-1-timing-led.png" alt="Setup page: timing and status LED" width="300">
-  <img src="images/portal-2-wiring-firmware.png" alt="Setup page: wiring, re-pairing, firmware update, identify and test" width="300">
-</p>
+<table>
+  <tr>
+    <td valign="top"><img src="images/portal-1-timing-led.png" alt="Setup page, top: timing and status LED" width="300"></td>
+    <td valign="top"><img src="images/portal-2-wiring-firmware.png" alt="Setup page, bottom: wiring, re-pairing, firmware update, identify and test" width="300"></td>
+  </tr>
+</table>
 
 **3. Change settings and press Save & reboot.** The switch stores the settings
 and restarts normally. If you do nothing for 5 minutes, it leaves setup mode by
