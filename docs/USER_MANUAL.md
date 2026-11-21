@@ -46,7 +46,7 @@ Other patterns:
 
 | LED | Meaning |
 |---|---|
-| One long flash (1 second) | Just powered up. |
+| 3 quick flashes, once | Just powered up. |
 | Long flashes, no short ones | *Flash LED* was pressed on the setup page. |
 | On / off | Normal operation; follows the fan (default setting). |
 

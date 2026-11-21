@@ -135,7 +135,7 @@ cargo espflash flash --release --port "$PORT" --before no-reset --after no-reset
 ```
 
 Then unplug the adapter, **remove the bridge between pins 1 and 2**, and plug it
-in again. The LED gives one long flash, then repeats one short and one long flash
+in again. The LED flashes three times quickly, then repeats one short and one long flash
 (`·  —`): the firmware is running and waiting to be added to a Hue Bridge. All
 codes are listed in the [user manual](USER_MANUAL.md#the-status-light).
 
