@@ -57,8 +57,9 @@ const PORTAL_CYCLES: Option<u8> = Some(3);
 /// quick off/on sequences accumulate toward opening the portal.
 const RESET_ARM_WINDOW: Duration = Duration::from_secs(6);
 
-/// Rapid flicker at power-on, as an alive indicator (distinct from the codes).
-const BOOT_FLICKERS: u8 = 8;
+/// One long flash at power-on, as an alive indicator. Has no short flashes,
+/// so it can't be read as a blink code.
+const BOOT_FLASH: Duration = Duration::from_millis(1000);
 
 // ─────────────────────────────── LED codes ──────────────────────────────────
 //
@@ -914,15 +915,13 @@ fn main() {
         schedule_zigbee_factory_reset(nvs.clone());
     }
 
-    // LED: brief power-on flicker (polarity-agnostic), then settle per config.
+    // LED: one long power-on flash, then settle per config.
     if let Some(pin) = LED_GPIO {
         configure_output(pin);
-        for _ in 0..BOOT_FLICKERS {
-            set_level(pin, 1);
-            std::thread::sleep(Duration::from_millis(40));
-            set_level(pin, 0);
-            std::thread::sleep(Duration::from_millis(40));
-        }
+        let ah = cfg.led_active_high;
+        set_level(pin, if ah { 1 } else { 0 });
+        std::thread::sleep(BOOT_FLASH);
+        set_level(pin, if ah { 0 } else { 1 });
     }
 
     // Relay worker owns the relay, LED and timers.
