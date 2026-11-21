@@ -19,7 +19,7 @@ see the [installation guide](INSTALL.md), for everyday use the
 |---|---|---|
 | Relay | 4 | drives the fan |
 | Status LED | 11 (inverted, LOW = lit) | status indicator |
-| Onboard button | 1 | hold 5–10 s: setup mode; over 10 s: re-pair |
+| Onboard button | 1 (active-low) | hold 5–10 s: setup mode; over 10 s: re-pair |
 | Switch input SW | 10 | not used |
 | NTC | 3 | not used |
 | BL0942 power meter | 6 / 7 | not used |
@@ -92,12 +92,12 @@ hex digits of the chip's WiFi MAC address.
 
 ## Behaviour notes
 
-- **The button is active-high.** Pressed, it drives GPIO1 high; it has no
-  resistor of its own, so the pin is read with the internal pull-down. With the
-  pull-up (as huesmith's reset pin and the Tasmota template assume) presses
-  can't be seen. ESPHome's configuration matches this. The raw level shows as
-  `btn=` in `status` and live on the setup page. A hold over 30 s counts as a
-  stuck button and does nothing.
+- **The button is active-low.** Pressed, it pulls GPIO1 to ground; the board
+  has its own pull-up (the pin reads high even with the internal pull-down), and
+  the internal pull-up is enabled as well. This matches the Tasmota template;
+  ESPHome's configuration, which reads it as active-high, is wrong for this
+  board. The raw level shows as `btn=` in `status` and live on the setup page.
+  A hold over 30 s counts as a stuck button and does nothing.
 - **Zigbee OTA frames are dropped.** huesmith advertises the Zigbee OTA Upgrade
   client cluster without implementing it. The Hue Bridge sends an OTA command
   right after pairing, the Zigbee stack then asserts

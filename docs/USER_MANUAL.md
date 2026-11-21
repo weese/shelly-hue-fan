@@ -60,7 +60,7 @@ when you let go:
 
 | Hold | LED while holding | When you let go |
 |---|---|---|
-| less than 5 seconds | unchanged | nothing |
+| less than 5 seconds | lit steadily | nothing |
 | 5 to 10 seconds | code 2 (`· ·`) | the switch restarts in [setup mode](#changing-settings-setup-mode) |
 | more than 10 seconds | code 3 (`· · ·`) | [re-pair](#re-adding-or-moving-to-another-bridge): the switch leaves Hue and waits to be added again |
 

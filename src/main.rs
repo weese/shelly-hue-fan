@@ -39,15 +39,14 @@ const LED_GPIO: Option<u8> = Some(11);
 
 /// Onboard button. Held 5–10 s and released: restart into the setup portal.
 /// Held over 10 s and released: re-pair (new Zigbee address, factory reset).
-/// The button drives the pin high when pressed and has no resistor of its
-/// own, so it is read with the internal pull-down (verified on the device; with
-/// the pull-up, presses can't be seen). Holding it from power-on works too:
-/// the hold is counted from when the watcher starts.
+/// The button pulls the pin low when pressed; the board has its own pull-up
+/// (verified on the device), the internal one is enabled as a backup. Holding
+/// it from power-on works too: the hold is counted from when the watcher starts.
 pub(crate) const BUTTON_GPIO: Option<u8> = Some(1);
 
-/// Whether the button is pressed (pin high).
+/// Whether the button is pressed (pin low).
 pub(crate) fn button_pressed(pin: u8) -> bool {
-    get_level(pin) == 1
+    get_level(pin) == 0
 }
 const HOLD_SETUP: Duration = Duration::from_secs(5);
 const HOLD_REPAIR: Duration = Duration::from_secs(10);
@@ -95,6 +94,9 @@ pub fn code_lit(code: u8, t_ms: u64) -> bool {
 /// re-pair is pending.
 static LED_CODE_OVERRIDE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
 
+/// Override value for "LED steadily on" (button held, no action reached yet).
+const LED_STEADY: u8 = u8::MAX;
+
 
 // ─────────────────────── Raw GPIO via ESP-IDF (by pin) ───────────────────────
 // huesmith calls `Peripherals::take()` in launch(), so we can't take the HAL
@@ -104,8 +106,8 @@ pub(crate) fn configure_button_input(pin: u8) -> bool {
     let cfg = esp_idf_svc::sys::gpio_config_t {
         pin_bit_mask: 1u64 << pin,
         mode: esp_idf_svc::sys::gpio_mode_t_GPIO_MODE_INPUT,
-        pull_up_en: esp_idf_svc::sys::gpio_pullup_t_GPIO_PULLUP_DISABLE,
-        pull_down_en: esp_idf_svc::sys::gpio_pulldown_t_GPIO_PULLDOWN_ENABLE,
+        pull_up_en: esp_idf_svc::sys::gpio_pullup_t_GPIO_PULLUP_ENABLE,
+        pull_down_en: esp_idf_svc::sys::gpio_pulldown_t_GPIO_PULLDOWN_DISABLE,
         intr_type: esp_idf_svc::sys::gpio_int_type_t_GPIO_INTR_DISABLE,
     };
     unsafe { esp_idf_svc::sys::gpio_config(&cfg) == esp_idf_svc::sys::ESP_OK }
@@ -284,7 +286,7 @@ fn spawn_button_watcher(pin: u8, nvs: EspDefaultNvsPartition) {
                 log::error!("button: cannot configure GPIO{pin}");
                 return;
             }
-            std::thread::sleep(Duration::from_millis(5)); // let the pull-down settle
+            std::thread::sleep(Duration::from_millis(5)); // let the pull-up settle
             loop {
                 std::thread::sleep(POLL);
                 if !button_pressed(pin) {
@@ -293,6 +295,7 @@ fn spawn_button_watcher(pin: u8, nvs: EspDefaultNvsPartition) {
                 // Pressed: track the hold until the button reads released
                 // for DEBOUNCE, showing the pending action's code meanwhile.
                 let pressed_at = Instant::now();
+                LED_CODE_OVERRIDE.store(LED_STEADY, Ordering::Relaxed);
                 let mut released_since: Option<Instant> = None;
                 let mut stage = Hold::Short;
                 loop {
@@ -311,7 +314,8 @@ fn spawn_button_watcher(pin: u8, nvs: EspDefaultNvsPartition) {
                         let code = match stage {
                             Hold::Setup => CODE_SETUP_MODE,
                             Hold::Repair => CODE_REPAIRING,
-                            Hold::Short | Hold::Stuck => 0,
+                            Hold::Short => LED_STEADY,
+                            Hold::Stuck => 0,
                         };
                         LED_CODE_OVERRIDE.store(code, Ordering::Relaxed);
                         if stage == Hold::Stuck {
@@ -815,7 +819,8 @@ fn relay_worker(rx: Receiver<Cmd>, cfg: Config) {
         }
         if code != 0 {
             if let Some(pin) = LED_GPIO {
-                let lit = code_lit(code, code_since.elapsed().as_millis() as u64);
+                let lit = code == LED_STEADY
+                    || code_lit(code, code_since.elapsed().as_millis() as u64);
                 set_level(pin, if lit == cfg.led_active_high { 1 } else { 0 });
             }
         } else {
