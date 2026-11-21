@@ -44,8 +44,8 @@ static LAST_ACTIVITY_S: AtomicU32 = AtomicU32::new(0);
 static IDENTIFY_UNTIL_S: AtomicU32 = AtomicU32::new(0);
 /// Relay state while in setup mode (the relay worker doesn't run here).
 static RELAY_ON: AtomicBool = AtomicBool::new(false);
-/// Button level when the portal started (= released), or -1 without a button.
-static BUTTON_IDLE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(-1);
+/// Whether the button input could be configured.
+static BUTTON_OK: AtomicBool = AtomicBool::new(false);
 
 /// Whether the LED should currently show the identify pattern (read by the
 /// LED thread `main` starts for setup mode).
@@ -72,10 +72,7 @@ pub fn run(modem: Modem, sysloop: EspSystemEventLoop, nvs: EspDefaultNvsPartitio
     let relay_active_high = Config::load(&nvs).relay_active_high;
     crate::configure_output(crate::RELAY_GPIO);
     if let Some(pin) = crate::BUTTON_GPIO {
-        if crate::configure_button_input(pin) {
-            std::thread::sleep(std::time::Duration::from_millis(5));
-            BUTTON_IDLE.store(crate::get_level(pin), Ordering::Relaxed);
-        }
+        BUTTON_OK.store(crate::configure_button_input(pin), Ordering::Relaxed);
     }
     crate::set_relay(relay_active_high, false);
 
@@ -199,11 +196,10 @@ pub fn run(modem: Modem, sysloop: EspSystemEventLoop, nvs: EspDefaultNvsPartitio
     // by the page, so it doesn't count as activity for the idle timeout.
     server
         .fn_handler("/button", Method::Get, move |req| -> Result<(), HandlerErr> {
-            let idle = BUTTON_IDLE.load(Ordering::Relaxed);
             let body = match crate::BUTTON_GPIO {
-                Some(pin) if idle >= 0 => {
+                Some(pin) if BUTTON_OK.load(Ordering::Relaxed) => {
                     let level = crate::get_level(pin);
-                    format!("{{\"level\":{level},\"pressed\":{}}}", level != idle)
+                    format!("{{\"level\":{level},\"pressed\":{}}}", crate::button_pressed(pin))
                 }
                 _ => "{\"level\":-1,\"pressed\":false}".to_string(),
             };

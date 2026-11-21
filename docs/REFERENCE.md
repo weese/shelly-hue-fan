@@ -92,13 +92,12 @@ hex digits of the chip's WiFi MAC address.
 
 ## Behaviour notes
 
-- **Button polarity is detected, not assumed.** Whatever level the pin has
-  one second after boot counts as "released". The pin references disagree on
-  the polarity (ESPHome reads it as active-high, the Tasmota template as an
-  ordinary active-low button). With the internal pull-up, presses were not
-  detected at all, so the pin is now read with the internal pull-down. The raw
-  level shows as `btn=` in `status` and live on the setup page. A hold over
-  30 s counts as a stuck button and does nothing.
+- **The button is active-high.** Pressed, it drives GPIO1 high; it has no
+  resistor of its own, so the pin is read with the internal pull-down. With the
+  pull-up (as huesmith's reset pin and the Tasmota template assume) presses
+  can't be seen. ESPHome's configuration matches this. The raw level shows as
+  `btn=` in `status` and live on the setup page. A hold over 30 s counts as a
+  stuck button and does nothing.
 - **Zigbee OTA frames are dropped.** huesmith advertises the Zigbee OTA Upgrade
   client cluster without implementing it. The Hue Bridge sends an OTA command
   right after pairing, the Zigbee stack then asserts

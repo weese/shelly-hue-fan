@@ -64,6 +64,9 @@ when you let go:
 | 5 to 10 seconds | code 2 (`·  ·  —`) | the switch restarts in [setup mode](#changing-settings-setup-mode) |
 | more than 10 seconds | code 3 (`·  ·  ·  —`) | [re-pair](#re-adding-or-moving-to-another-bridge): the switch leaves Hue and waits to be added again |
 
+It works the same if you already hold the button while switching the power on;
+the time then counts from about two seconds after power-on.
+
 Once the switch is built in, the button is usually out of reach. Everything it
 does can also be done by switching the power off and on (see below).
 

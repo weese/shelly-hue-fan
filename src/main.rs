@@ -39,10 +39,16 @@ const LED_GPIO: Option<u8> = Some(11);
 
 /// Onboard button. Held 5–10 s and released: restart into the setup portal.
 /// Held over 10 s and released: re-pair (new Zigbee address, factory reset).
-/// The level at boot counts as "released", so its polarity doesn't matter.
-/// Read with the internal pull-down: with the pull-up, presses were not seen
-/// (the button apparently drives the pin high and has no resistor of its own).
+/// The button drives the pin high when pressed and has no resistor of its
+/// own, so it is read with the internal pull-down (verified on the device; with
+/// the pull-up, presses can't be seen). Holding it from power-on works too:
+/// the hold is counted from when the watcher starts.
 pub(crate) const BUTTON_GPIO: Option<u8> = Some(1);
+
+/// Whether the button is pressed (pin high).
+pub(crate) fn button_pressed(pin: u8) -> bool {
+    get_level(pin) == 1
+}
 const HOLD_SETUP: Duration = Duration::from_secs(5);
 const HOLD_REPAIR: Duration = Duration::from_secs(10);
 /// Held longer than this counts as stuck: no action on release.
@@ -282,12 +288,10 @@ fn spawn_button_watcher(pin: u8, nvs: EspDefaultNvsPartition) {
                 log::error!("button: cannot configure GPIO{pin}");
                 return;
             }
-            std::thread::sleep(Duration::from_secs(1));
-            let idle = get_level(pin);
-            log::info!("button: GPIO{pin} released level = {idle}");
+            std::thread::sleep(Duration::from_millis(5)); // let the pull-down settle
             loop {
                 std::thread::sleep(POLL);
-                if get_level(pin) == idle {
+                if !button_pressed(pin) {
                     continue;
                 }
                 // Pressed: track the hold until the button reads released
@@ -297,7 +301,7 @@ fn spawn_button_watcher(pin: u8, nvs: EspDefaultNvsPartition) {
                 let mut stage = Hold::Short;
                 loop {
                     std::thread::sleep(POLL);
-                    if get_level(pin) == idle {
+                    if !button_pressed(pin) {
                         let since = *released_since.get_or_insert_with(Instant::now);
                         if since.elapsed() >= DEBOUNCE {
                             break;
