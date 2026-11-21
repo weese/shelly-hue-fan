@@ -125,8 +125,11 @@ builds take seconds.
 | 6 | TX | adapter **RX** |
 | 7 | — | nothing |
 
-The pinout is the same as the Shelly Plus 1PM's. Identify pin 1 from the marking
-on your board before you connect power.
+The header is described in the
+[blakadder template for the Shelly 1PM Gen4](https://templates.blakadder.com/shelly_1PM_Gen4.html).
+Its pinout is the same as the Shelly Plus 1PM's, whose
+[blakadder page](https://templates.blakadder.com/shelly_plus_1PM.html) has a
+photo showing where pin 1 is. Find pin 1 on your board before you connect power.
 
 Plug in the adapter and find its serial port:
 
@@ -483,7 +486,9 @@ Notes for development:
 
 - [huesmith](https://github.com/canack/huesmith) by Engin Açıkgöz.
 - Pin and header references: the ESPHome device database, the blakadder Tasmota
-  template for the Shelly 1PM Gen4, and Tasmota discussion #24407.
+  templates for the [Shelly 1PM Gen4](https://templates.blakadder.com/shelly_1PM_Gen4.html)
+  and the [Shelly Plus 1PM](https://templates.blakadder.com/shelly_plus_1PM.html),
+  and Tasmota discussion #24407.
 
 ## License
 
