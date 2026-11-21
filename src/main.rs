@@ -37,8 +37,9 @@ use config::{Config, LedMode};
 const RELAY_GPIO: u8 = 4;
 const LED_GPIO: Option<u8> = Some(11);
 
-/// Onboard button huesmith uses for factory reset at boot (bench only — it's
-/// unreachable once installed; use the power-cycle portal instead).
+/// Onboard button (active low). Held while the switch powers up, it triggers
+/// the same re-pair as the portal: new Zigbee address, then factory reset.
+/// Mostly for the bench; once installed the portal is the way to re-pair.
 const RESET_BUTTON_GPIO: Option<u8> = Some(1);
 
 // ───────────────────────── Power-cycle → portal ─────────────────────────────
@@ -56,6 +57,26 @@ const BOOT_BLINKS: u8 = 3;
 // ─────────────────────── Raw GPIO via ESP-IDF (by pin) ───────────────────────
 // huesmith calls `Peripherals::take()` in launch(), so we can't take the HAL
 // pins; we drive the relay/LED through the C GPIO API by pin number instead.
+
+/// True if the active-low button on `pin` reads pressed for ~50 ms.
+fn button_held(pin: u8) -> bool {
+    let cfg = esp_idf_svc::sys::gpio_config_t {
+        pin_bit_mask: 1u64 << pin,
+        mode: esp_idf_svc::sys::gpio_mode_t_GPIO_MODE_INPUT,
+        pull_up_en: esp_idf_svc::sys::gpio_pullup_t_GPIO_PULLUP_ENABLE,
+        pull_down_en: esp_idf_svc::sys::gpio_pulldown_t_GPIO_PULLDOWN_DISABLE,
+        intr_type: esp_idf_svc::sys::gpio_int_type_t_GPIO_INTR_DISABLE,
+    };
+    if unsafe { esp_idf_svc::sys::gpio_config(&cfg) } != esp_idf_svc::sys::ESP_OK {
+        return false;
+    }
+    std::thread::sleep(Duration::from_millis(5)); // let the pull-up settle
+    (0..5).all(|_| {
+        std::thread::sleep(Duration::from_millis(10));
+        let level = unsafe { esp_idf_svc::sys::gpio_get_level(pin as i32) };
+        level == 0
+    })
+}
 
 fn configure_output(pin: u8) {
     let cfg = esp_idf_svc::sys::gpio_config_t {
@@ -266,7 +287,8 @@ fn handle_command(cmd: &str, nvs: &EspDefaultNvsPartition) {
                 .collect::<Vec<_>>()
                 .join(":");
             console_print(&format!(
-                "status id={} slot={} factory_new={fnew} joined={joined} pan=0x{pan:04X} ieee={ieee} mac_off={} min_on={} run_on={} led={} relay_ah={} led_ah={}",
+                "status fw={} id={} slot={} factory_new={fnew} joined={joined} pan=0x{pan:04X} ieee={ieee} mac_off={} min_on={} run_on={} led={} relay_ah={} led_ah={}",
+                env!("FW_VERSION"),
                 device_id(),
                 running_slot(),
                 c.mac_offset,
@@ -752,6 +774,9 @@ fn main() {
         log::warn!("re-pair requested from portal — scheduling address change + factory reset");
         Config::clear_repair_flag(&nvs);
         schedule_zigbee_factory_reset(nvs.clone());
+    } else if RESET_BUTTON_GPIO.is_some_and(button_held) {
+        log::warn!("button held at boot — scheduling address change + factory reset");
+        schedule_zigbee_factory_reset(nvs.clone());
     }
 
     // LED: brief power-on blink (polarity-agnostic), then settle per config.
@@ -783,9 +808,6 @@ fn main() {
 
     let mut light = huesmith::custom(HueDeviceType::OnOffLight, FanDriver { tx })
         .name("huesmith", "SHELLY-FAN-1");
-    if let Some(pin) = RESET_BUTTON_GPIO {
-        light = light.reset_pin(pin);
-    }
     if let Some(eui) = identity_eui64(mac_offset) {
         light = light.mac(eui);
     }

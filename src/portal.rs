@@ -324,6 +324,7 @@ fn rsel(mode: LedMode, want: LedMode) -> &'static str {
 
 fn render_form(c: &Config, id: &str, relay_on: bool) -> String {
     PAGE.replace("__ID__", id)
+        .replace("__FW__", env!("FW_VERSION"))
         .replace("__RELAY_ON__", if relay_on { "true" } else { "false" })
         .replace("__MIN_ON__", &c.min_on_secs.to_string())
         .replace("__RUN_ON__", &c.run_on_secs.to_string())
@@ -478,7 +479,7 @@ input[type=number]:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
     <p class=sub>&ldquo;Flash LED&rdquo; makes this device&rsquo;s LED give long flashes for 10&nbsp;s. &ldquo;Relay&rdquo; switches the fan on and off when the switch is on mains.</p>
   </div>
 
-  <p class=foot>Portal closes after 5 min idle<br>Do not power off during a firmware update</p>
+  <p class=foot>Firmware __FW__<br>Portal closes after 5 min idle<br>Do not power off during a firmware update</p>
 </div>
 <script>
 var rb=document.getElementById('relay');
