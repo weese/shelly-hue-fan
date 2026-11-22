@@ -1,0 +1,4 @@
+# Everything else comes from ../.cargo/config.toml; cargo-espflash only looks
+# for the target in the package's own directory.
+[build]
+target = "riscv32imac-esp-espidf"

@@ -30,7 +30,8 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: firmware-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'sdkconfig.defaults', '.cargo/config.toml', 'components_esp32c6.lock', 'partitions.csv') }}
+            stock-installer/target
+          key: firmware-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'sdkconfig.defaults', '.cargo/config.toml', 'components_esp32c6.lock', 'partitions.csv', 'stock-installer/Cargo.lock', 'stock-installer/sdkconfig.defaults', 'stock-installer/partitions.csv') }}
           restore-keys: firmware-${{ runner.os }}-
 
       - name: Rust toolchain
@@ -58,10 +59,25 @@ jobs:
           ls -l dist
           echo "VER=$VER" >> "$GITHUB_ENV"
 
+      # Package for installing from Shelly's own web UI (stock-installer/).
+      # Not attached to releases until it has been tested on a device.
+      - name: Stock-firmware installer
+        run: |
+          mkdir -p installer
+          python3 tools/make-stock-installer.py \
+            --full "dist/shelly-hue-fan-$VER-full.bin" --app "dist/shelly-hue-fan-$VER-app.bin" \
+            --version "$VER" --out "installer/shelly-hue-fan-$VER-stock-installer-S1PMG4.zip"
+
       - uses: actions/upload-artifact@v4
         with:
           name: shelly-hue-fan-${{ env.VER }}
           path: dist/
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shelly-hue-fan-${{ env.VER }}-stock-installer
+          path: installer/
           if-no-files-found: error
 
   release:

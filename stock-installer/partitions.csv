@@ -1,0 +1,14 @@
+# Shelly 1PM Gen4 stock layout, as read from the partition table at 0x10000 of a
+# stock flash dump. The installer must be built for this layout because Shelly's
+# bootloader starts it inside it. The installer doesn't read the table at
+# runtime; it is only used for the build's size checks. Left out: Shelly's
+# factory data partition `shelly` (data, subtype 0x88, 0x7F0000, 0x10000),
+# whose subtype espflash can't parse.
+# Name,     Type, SubType, Offset,   Size,     Flags
+otadata,    data, ota,     0x11000,  0x2000,
+nvs,        data, nvs,     0x14000,  0xC000,
+app_0,      app,  ota_0,   0x20000,  0x300000,
+fs_0,       data, spiffs,  0x320000, 0xE0000,
+app_1,      app,  ota_1,   0x400000, 0x300000,
+fs_1,       data, spiffs,  0x700000, 0xE0000,
+zb_storage, data, fat,     0x7E8000, 0x8000,

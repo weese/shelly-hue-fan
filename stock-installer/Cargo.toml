@@ -1,0 +1,17 @@
+[package]
+name = "shelly-hue-fan-stock-installer"
+version = "0.1.0"
+edition = "2021"
+description = "Installs shelly-hue-fan on a Shelly 1PM Gen4 that still runs Shelly's own firmware"
+license = "MIT"
+publish = false
+
+[dependencies]
+esp-idf-sys = "0.37"
+
+[build-dependencies]
+embuild = "0.33"
+
+[profile.release]
+opt-level = "s"
+lto = true

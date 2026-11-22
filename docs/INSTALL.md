@@ -17,6 +17,10 @@ For using the switch once it's installed, see the [user manual](USER_MANUAL.md).
 Later: [updating the firmware](#updating-the-firmware-later),
 [restoring stock firmware](#restoring-stock-firmware).
 
+There is also an [experimental way without opening the
+switch](#from-shellys-web-ui-experimental), through Shelly's own web UI. It
+hasn't been tested on a device yet.
+
 ## What you need
 
 - **Shelly 1PM Gen4**, model S4SW-001P16EU. Other Shelly models use other pins.
@@ -80,6 +84,18 @@ cargo build --release
 
 The first build downloads and compiles ESP-IDF and takes a long while. Later
 builds take seconds.
+
+**Or use a prebuilt image** from the
+[releases page](https://github.com/weese/shelly-hue-fan/releases): you then only
+need `esptool` from step 1. In step 5, write `shelly-hue-fan-<version>-full.bin`
+instead of running `cargo espflash`:
+
+```bash
+esptool --chip esp32c6 --port "$PORT" --baud 115200 --before no-reset --after no-reset write-flash 0x0 shelly-hue-fan-<version>-full.bin
+```
+
+The full image covers the whole 8 MB flash, so this also erases everything the
+stock firmware left behind; take the backup in step 4 first.
 
 ## 3. Wire the adapter
 
@@ -214,6 +230,73 @@ first slot (`ota_0`). That is why the serial flash command erases `otadata`:
 without it, a switch that last ran an uploaded firmware from `ota_1` would keep
 starting the old firmware there. The console's `status` shows the running slot
 as `slot=ota_0` or `slot=ota_1`.
+
+## From Shelly's web UI (experimental)
+
+> **Not tested on a device yet.** If it goes wrong at the wrong moment, the
+> switch only comes back with the serial adapter from
+> [step 3](#3-wire-the-adapter). There's no stock-firmware backup either, so
+> going back to Shelly's firmware later would need an image from another
+> switch.
+
+Shelly's own firmware can install a firmware file from its web page. It only
+accepts a zip in Shelly's own format with the switch's model code (`S1PMG4`) in
+it, and puts the app into one of its own two slots. So the package
+`shelly-hue-fan-<version>-stock-installer-S1PMG4.zip` contains a small installer
+program, with the firmware embedded. When Shelly's bootloader starts it, the
+installer:
+
+1. writes the shelly-hue-fan app into a slot that doesn't overlap itself,
+2. writes the shelly-hue-fan partition table and an empty settings area,
+3. replaces Shelly's bootloader with the shelly-hue-fan one,
+4. erases Shelly's partition table, settings (including your WiFi password) and
+   leftover data in the Zigbee storage area, and restarts.
+
+A power cut during steps 1 and 2 is harmless: Shelly's bootloader then starts
+the installer again, or falls back to Shelly's firmware. Step 3 takes well under a second; a power cut exactly then
+leaves the switch needing a serial flash. Shelly's factory data area
+(`shelly`, at `0x7F0000`) is never touched.
+
+The result is the same flash contents as a serial flash. Afterwards the switch
+behaves as described in the [user manual](USER_MANUAL.md) and can be updated
+through the setup page.
+
+Steps:
+
+1. Update the switch to the latest Shelly firmware (2.0 or later) in the Shelly
+   app. Switches from the factory carry two Shelly firmwares (WiFi/Matter and
+   Zigbee), and older versions refuse a foreign app in that state.
+2. Open the switch's web page (its IP address in a browser), then
+   **Settings → Firmware** and install the zip from a file.
+3. The switch restarts twice. The LED is lit while the installer runs and
+   flashes quickly if it stops with an error. When it's done, the LED shows code 1
+   (`·`): continue with [step 6](#6-pair-with-hue). If it flashes quickly,
+   switch the power off and on to retry.
+
+The package is built in CI as a separate artifact
+(`shelly-hue-fan-<version>-stock-installer`), not yet attached to releases. To
+build it locally after `cargo build --release`:
+
+```bash
+V=$(git describe --tags --always --dirty)
+```
+
+```bash
+cargo espflash save-image --release --chip esp32c6 --flash-size 8mb --partition-table partitions.csv shelly-hue-fan-$V-app.bin
+```
+
+```bash
+cargo espflash save-image --release --chip esp32c6 --flash-size 8mb --partition-table partitions.csv --merge shelly-hue-fan-$V-full.bin
+```
+
+```bash
+python3 tools/make-stock-installer.py --full shelly-hue-fan-$V-full.bin --app shelly-hue-fan-$V-app.bin --version $V --out shelly-hue-fan-$V-stock-installer-S1PMG4.zip
+```
+
+The package format and the fact that Shelly's updater accepts an unsigned
+package under the switch's own model code come from
+[hencou/shelly_gen4_matter_module](https://github.com/hencou/shelly_gen4_matter_module),
+which installs this way on the Shelly 1 Gen4 and 1 Mini Gen4.
 
 ## Restoring stock firmware
 

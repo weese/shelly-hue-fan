@@ -3,3 +3,5 @@
 # firmware images and flash dumps (the stock-firmware backup must never be published)
 *.bin
 .DS_Store
+/stock-installer/target
+/dist

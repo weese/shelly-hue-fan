@@ -123,6 +123,8 @@ hex digits of the chip's WiFi MAC address.
 | `src/portal.rs` | WiFi access point, captive DNS, web page, firmware upload |
 | `tools/console.py` | serial console client |
 | `tools/backup_flash.sh` | chunked flash backup |
+| `stock-installer/` | separate program that installs the firmware from Shelly's own web UI ([details](INSTALL.md#from-shellys-web-ui-experimental)) |
+| `tools/make-stock-installer.py` | builds that program with the firmware embedded and packs it as a Shelly update zip |
 | `partitions.csv` | two firmware slots (`ota_0`, `ota_1`) plus Zigbee storage |
 | `sdkconfig.defaults` | ESP-IDF configuration |
 
@@ -132,8 +134,9 @@ hex digits of the chip's WiFi MAC address.
   push and pull request and uploads two images as a build artifact:
   `…-full.bin` (complete 8 MB flash image, written at `0x0` on a stock device)
   and `…-app.bin` (for the firmware update in the setup page), plus
-  `SHA256SUMS`. Pushing a tag `v*` additionally creates a **draft** release with
-  these files.
+  `SHA256SUMS`. A second artifact holds the package for Shelly's web UI.
+  Pushing a tag `v*` additionally creates a **draft** release with the first
+  artifact's files.
 - A change to `sdkconfig.defaults` triggers a full ESP-IDF rebuild (about two
   minutes); other builds take seconds.
 - Changing `partitions.csv` moves the Zigbee storage and therefore erases the
