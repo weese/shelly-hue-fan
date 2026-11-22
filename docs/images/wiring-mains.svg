@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 560" width="620" height="560" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>Connecting the Shelly 1PM Gen4 and the fan to mains</title>
+  <desc>Permanent live from the circuit breaker to an L terminal of the Shelly, neutral to an N terminal. The Shelly's O terminal goes to the fan's live terminal. The fan's neutral joins the neutral wire, and its protective earth, if it has one, joins the earth wire. SW and the other L and N terminals stay free.</desc>
+
+  <!-- card background so it reads on light and dark GitHub themes -->
+  <rect x="0" y="0" width="620" height="560" rx="14" fill="#ffffff"/>
+  <rect x="0.5" y="0.5" width="619" height="559" rx="14" fill="none" stroke="#d0d7de"/>
+
+  <text x="30" y="40" font-size="20" font-weight="600" fill="#1f2328">Wiring to mains</text>
+  <text x="30" y="64" font-size="14" fill="#57606a">Circuit breaker off while wiring. Serial adapter disconnected.</text>
+
+  <text x="60" y="102" font-size="12" fill="#57606a">from the circuit breaker (type B or C, max. 16 A), permanent, not through a wall switch</text>
+
+  <!-- supply lines -->
+  <g font-size="14" font-weight="600" text-anchor="end">
+    <text x="48" y="125" fill="#8a4b08">L</text>
+    <text x="48" y="160" fill="#0969da">N</text>
+    <text x="48" y="195" fill="#1a7f37">PE</text>
+  </g>
+  <path d="M 60 120 H 360 V 309" fill="none" stroke="#8a4b08" stroke-width="3"/>
+  <path d="M 60 155 H 510 V 309" fill="none" stroke="#0969da" stroke-width="3"/>
+  <!-- protective earth: green with yellow dashes -->
+  <path d="M 60 190 H 95 V 260" fill="none" stroke="#1a7f37" stroke-width="3"/>
+  <path d="M 60 190 H 95 V 260" fill="none" stroke="#d4a72c" stroke-width="3" stroke-dasharray="6 6"/>
+
+  <!-- fan neutral joins the neutral wire -->
+  <path d="M 125 155 V 260" fill="none" stroke="#0969da" stroke-width="3"/>
+  <circle cx="125" cy="155" r="5" fill="#0969da"/>
+
+  <!-- switched live from O to the fan -->
+  <path d="M 260 309 V 230 H 155 V 260" fill="none" stroke="#24292f" stroke-width="3"/>
+  <text x="270" y="222" font-size="12" fill="#57606a">switched live</text>
+
+  <!-- fan -->
+  <rect x="70" y="260" width="110" height="90" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+  <g font-size="11" fill="#57606a" text-anchor="middle">
+    <text x="95" y="278">PE</text>
+    <text x="125" y="278">N</text>
+    <text x="155" y="278">L</text>
+  </g>
+  <circle cx="125" cy="313" r="18" fill="#ffffff" stroke="#1f2328" stroke-width="2"/>
+  <text x="125" y="318" font-size="14" font-weight="600" fill="#1f2328" text-anchor="middle">M</text>
+  <text x="125" y="368" font-size="14" font-weight="600" fill="#1f2328" text-anchor="middle">Fan</text>
+  <text x="125" y="386" font-size="12" fill="#57606a" text-anchor="middle">PE only if it has one</text>
+
+  <!-- Shelly -->
+  <rect x="230" y="290" width="360" height="130" rx="10" fill="#f6f8fa" stroke="#d0d7de"/>
+  <rect x="242" y="300" width="336" height="30" rx="4" fill="#ffffff" stroke="#d0d7de"/>
+  <g fill="#ffffff" stroke="#1f2328" stroke-width="2">
+    <circle cx="260" cy="315" r="9"/>
+    <circle cx="310" cy="315" r="9" stroke="#8c959f"/>
+    <circle cx="360" cy="315" r="9"/>
+    <circle cx="410" cy="315" r="9" stroke="#8c959f"/>
+    <circle cx="460" cy="315" r="9" stroke="#8c959f"/>
+    <circle cx="510" cy="315" r="9"/>
+    <circle cx="560" cy="315" r="9" stroke="#8c959f"/>
+  </g>
+  <g font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">
+    <text x="260" y="352">O</text>
+    <text x="310" y="352" fill="#8c959f">SW</text>
+    <text x="360" y="352">L</text>
+    <text x="410" y="352" fill="#8c959f">L</text>
+    <text x="460" y="352" fill="#8c959f">L</text>
+    <text x="510" y="352">N</text>
+    <text x="560" y="352" fill="#8c959f">N</text>
+  </g>
+  <text x="410" y="385" font-size="15" font-weight="600" fill="#1f2328" text-anchor="middle">Shelly 1PM Gen4</text>
+  <text x="410" y="405" font-size="12" fill="#57606a" text-anchor="middle">terminals as printed on the front; grey ones stay free</text>
+
+  <g font-size="13" fill="#57606a">
+    <text x="30" y="458">• O switches the live wire: the fan gets power through it, the Shelly through L and N.</text>
+    <text x="30" y="480">• SW is not used by this firmware: Hue switches the fan, not a wall switch.</text>
+    <text x="30" y="502">• One wire per terminal, 0.2–2.5 mm², stripped 6–7 mm. Join the fan's N and PE with</text>
+    <text x="42" y="520">a connector in the box, not under a Shelly terminal.</text>
+  </g>
+</svg>

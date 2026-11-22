@@ -178,7 +178,19 @@ fine.
 
 ## 7. Test on mains, then install
 
-Disconnect the adapter. In a safe test setup, not yet in the wall box:
+Disconnect the adapter. Wire the switch like this, in the test setup and later
+in the wall box:
+
+![Wiring the Shelly and the fan to mains](images/wiring-mains.svg)
+
+- The Shelly needs **permanent** power. If the fan used to hang off the light
+  switch, take L from before that switch; otherwise the fan can't run on and
+  Hue loses the switch whenever the light switch is off.
+- The terminal order and wire sizes are from Shelly's own manual for the
+  1PM Gen4. A fan with its own run-on timer or humidity sensor may have extra
+  terminals; check its manual.
+
+In a safe test setup, not yet in the wall box:
 
 1. Hue on → the relay clicks and the fan runs.
 2. Hue off → the fan keeps running for the run-on time, then stops.
