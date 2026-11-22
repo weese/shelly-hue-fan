@@ -35,10 +35,8 @@ app and automations control lamp and fan together. No cloud, no extra app.
 - Built on [huesmith](https://github.com/canack/huesmith) by Engin Açıkgöz, which
   provides the Hue-compatible Zigbee light. This project adds the Shelly
   hardware layer, the timer logic, a serial console and a WiFi setup page.
-- Pin and header references: the ESPHome device database, the blakadder Tasmota
-  templates for the [Shelly 1PM Gen4](https://templates.blakadder.com/shelly_1PM_Gen4.html)
-  and the [Shelly Plus 1PM](https://templates.blakadder.com/shelly_plus_1PM.html),
-  and Tasmota discussion #24407.
+- Pin references: the
+  [ESPHome device database](https://devices.esphome.io/devices/shelly-1pm-gen-4/).
 
 ## License
 
